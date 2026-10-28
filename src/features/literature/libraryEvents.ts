@@ -1,0 +1,40 @@
+import type { LibrarySettings } from '../../types/library';
+
+export const LIBRARY_SETTINGS_UPDATED_EVENT = 'paperquay:library-settings-updated';
+export const ZOTERO_IMPORT_REQUEST_EVENT = 'paperquay:zotero-import-request';
+export const LIBRARY_METADATA_ENRICH_REQUEST_EVENT = 'paperquay:library-metadata-enrich-request';
+export const LIBRARY_DATA_CHANGED_EVENT = 'paperdesk:library-data-changed';
+
+export function emitLibraryDataChanged() {
+  window.dispatchEvent(new CustomEvent(LIBRARY_DATA_CHANGED_EVENT));
+}
+
+export interface LibrarySettingsUpdatedEventDetail {
+  settings: LibrarySettings;
+  source?: string;
+}
+
+export interface ZoteroImportRequestEventDetail {
+  dataDir?: string;
+  source?: string;
+}
+
+export function emitLibrarySettingsUpdated(settings: LibrarySettings, source?: string) {
+  window.dispatchEvent(
+    new CustomEvent<LibrarySettingsUpdatedEventDetail>(LIBRARY_SETTINGS_UPDATED_EVENT, {
+      detail: { settings, source },
+    }),
+  );
+}
+
+export function emitZoteroImportRequest(dataDir?: string, source?: string) {
+  window.dispatchEvent(
+    new CustomEvent<ZoteroImportRequestEventDetail>(ZOTERO_IMPORT_REQUEST_EVENT, {
+      detail: { dataDir, source },
+    }),
+  );
+}
+
+export function emitLibraryMetadataEnrichRequest() {
+  window.dispatchEvent(new CustomEvent(LIBRARY_METADATA_ENRICH_REQUEST_EVENT));
+}
