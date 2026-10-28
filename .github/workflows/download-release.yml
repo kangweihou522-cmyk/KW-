@@ -1,0 +1,76 @@
+name: Publish PaperDesk downloads (public repository only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# No paid runner, external publishing service, or user API key is required.
+permissions: {}
+concurrency:
+  group: paperdesk-download-release
+  cancel-in-progress: false
+
+jobs:
+  download:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out corresponding source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check version without replacing an existing release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          case "$version" in
+            ""|*[!0-9A-Za-z.+-]*) echo 'Invalid version'; exit 1 ;;
+          esac
+          tag="paperdesk-v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            echo 'This version is already published; existing downloads will not be replaced.'
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install locked dependencies
+        if: steps.version.outputs.exists != 'true'
+        run: npm ci --no-audit --no-fund
+      - name: Run tests
+        if: steps.version.outputs.exists != 'true'
+        run: npm test
+      - name: Build desktop interface
+        if: steps.version.outputs.exists != 'true'
+        run: npm run build
+      - name: Package Windows x64 program
+        if: steps.version.outputs.exists != 'true'
+        run: node electron/build.cjs --win --dir --x64 --publish never
+      - name: Prepare Windows ZIP, corresponding source and checksums
+        if: steps.version.outputs.exists != 'true'
+        run: node scripts/package-download.cjs
+      - name: Publish downloads on this repository
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          gh release create "$RELEASE_TAG" \
+            release/downloads/PaperDesk-*-Windows.zip \
+            release/downloads/PaperDesk-*-Source.zip \
+            release/downloads/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$RELEASE_TAG" \
+            --notes-file docs/RELEASE_NOTES.md
