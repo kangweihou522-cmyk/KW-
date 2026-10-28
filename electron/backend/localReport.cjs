@@ -2,8 +2,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const REPORT_PROMPT_VERSION = 'paperdesk-reading-report-v1';
-const MAX_EXCERPT_CHARS = 10_000;
+const REPORT_PROMPT_VERSION = 'paperdesk-reading-report-v2';
+const MAX_EXCERPT_CHARS = 4_000;
 const STRING_FIELDS = ['title', 'abstract', 'overview', 'background', 'researchProblem', 'approach', 'experimentSetup', 'dataAnalysis', 'discussion', 'conclusions', 'limitations', 'evidenceEvaluation'];
 const ARRAY_FIELDS = ['keyFindings', 'takeaways', 'keywords'];
 const MAX_SUPPLEMENT_FILE_BYTES = 64 * 1024 * 1024;

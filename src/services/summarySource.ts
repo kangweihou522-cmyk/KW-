@@ -16,7 +16,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-export const SUMMARY_PROMPT_VERSION = 'paperdesk-reading-report-v1';
+export const SUMMARY_PROMPT_VERSION = 'paperdesk-reading-report-v2';
 
 function normalizePdfPageText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();

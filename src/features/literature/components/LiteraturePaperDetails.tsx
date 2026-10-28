@@ -409,9 +409,19 @@ function TaskStatusPanel({
 }: {
   state: LiteraturePaperTaskState;
 }) {
+  const l = useLocaleText();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (state.status !== 'running') return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [state.status, state.updatedAt]);
+  const waitingForReport = state.kind === 'overview' && state.status === 'running';
+  const elapsed = Math.max(0, Math.floor((now - state.updatedAt) / 1000));
   const total = typeof state.total === 'number' ? state.total : 0;
   const completed = typeof state.completed === 'number' ? state.completed : 0;
-  const hasProgress = total > 0;
+  const hasProgress = total > 0 && !waitingForReport && state.status !== 'error';
   const ratio = hasProgress ? Math.min(100, Math.max(0, (completed / total) * 100)) : 45;
   const tone =
     state.status === 'error'
@@ -455,11 +465,12 @@ function TaskStatusPanel({
               <div className="shrink-0 text-xs font-semibold">
                 {completed}/{total}
               </div>
-            ) : null}
+            ) : waitingForReport ? <span className="shrink-0 text-xs">{l(`已用 ${elapsed} 秒`, `${elapsed}s elapsed`)}</span> : null}
           </div>
-          <div className="mt-1 line-clamp-2 text-xs leading-5 opacity-80">
+          <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 opacity-80 select-text">
             {state.message}
           </div>
+          {waitingForReport ? <p className="mt-1 text-xs opacity-80">{l('正在分段分析并汇总；此处不代表真实完成百分比。', 'Analyzing excerpts and merging; no completion percentage is available.')}</p> : null}
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/[0.08] dark:bg-white/10">
             <div
               className={[
