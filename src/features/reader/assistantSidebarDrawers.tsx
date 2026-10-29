@@ -1,3 +1,4 @@
+import { SelectionTranslationControls } from './SelectionTranslationControls';
 ﻿import { useState } from 'react';
 import { BookOpenText, FileJson, FileText, Info, PanelRightClose } from 'lucide-react';
 import { useLocaleText } from '../../i18n/uiLanguage';
@@ -126,6 +127,7 @@ function TranslateDrawerContent({
 }: TranslateDrawerContentProps) {
   return (
     <div className="h-full overflow-y-auto px-4 py-4">
+      <SelectionTranslationControls />
       <SelectionPanel
         selectedExcerpt={selectedExcerpt}
         selectedExcerptTranslation={selectedExcerptTranslation}

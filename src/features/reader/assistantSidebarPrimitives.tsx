@@ -1,3 +1,4 @@
+import { useReaderPreferences } from './ReaderPreferencesContext';
 import { Component, useMemo, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
@@ -243,6 +244,7 @@ function SummaryPanel({
   paperId?: string;
   paperTitle?: string;
 }) {
+  const preferences = useReaderPreferences();
   const l = useLocaleText();
   const [activeTab, setActiveTab] = useState('background');
   const [saving, setSaving] = useState(false);
@@ -274,6 +276,7 @@ function SummaryPanel({
     }
   }
   const activeSection = sections.find((section) => section.key === activeTab) ?? sections[0];
+  if (preferences?.settings.aiWorkflow === 'web') return <ChatGptAssist paperId={paperId} paperTitle={paperTitle || paperSummary?.title} />;
 
   return (
     <SectionCard
@@ -461,7 +464,7 @@ function SelectionPanel({
 
           {selectedExcerptTranslating ? (
             <div className="rounded-[22px] border border-indigo-100 bg-indigo-50/70 px-4 py-4 text-sm text-indigo-600">
-              {isPdfBlockExcerpt
+              {selectedExcerptTranslation ? <MarkdownPreview content={selectedExcerptTranslation} /> : isPdfBlockExcerpt
                 ? l('正在翻译当前段落...', 'Translating this paragraph...')
                 : l('正在翻译选中文本...', 'Translating the selected text...')}
             </div>

@@ -1,3 +1,4 @@
+import { SelectionTranslationControls } from './SelectionTranslationControls';
 import { useState } from 'react';
 import ReferenceExchangeDialog from '../literature/components/ReferenceExchangeDialog';
 import {
@@ -802,6 +803,7 @@ export function ReaderPreferencesContent({
 
       {activeSection === 'translation' ? (
         <>
+            <SelectionTranslationControls />
           <SettingsField
             label={l('翻译体验', 'Translation Experience')}
             description={l(
@@ -856,9 +858,9 @@ export function ReaderPreferencesContent({
             </div>
 
             <ToggleRow
-              title={l('启用划词翻译浮层', 'Enable Selection Translation Popover')}
+              title={l('启用右侧划词翻译', 'Enable Selection Translation Popover')}
               description={l(
-                '在 PDF 或结构化正文中选中文本后，显示划词翻译浮层和相关操作。',
+                '在 PDF 或结构化正文中划选文本后，自动展开最右侧翻译栏。',
                 'Show the selection translation popover and related actions after selecting text in the PDF or structured text.',
               )}
               checked={settings.enableSelectionTranslation}
@@ -878,7 +880,7 @@ export function ReaderPreferencesContent({
             <ToggleRow
               title={l('自动翻译划词', 'Auto Translate Selection')}
               description={l(
-                '划词翻译浮层开启时，选中文本后自动请求翻译，无需手动点击翻译按钮。',
+                '完成一次授权后，划选结束即在最右侧显示译文，无需重复确认或点击。',
                 'When the selection translation popover is enabled, automatically translate selected text without requiring a manual click.',
               )}
               checked={settings.autoTranslateSelection}

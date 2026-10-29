@@ -1,3 +1,4 @@
+import { listen } from '../../platform/electron/event';
 import { invoke } from '../../platform/electron/core';
 import {
   useCallback,
@@ -136,11 +137,30 @@ export function useDocumentTranslation({
   const [translationProgressCompleted, setTranslationProgressCompleted] =
     useState(0);
   const [translationProgressTotal, setTranslationProgressTotal] = useState(0);
+  const onlineSelectionRequestRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedExcerptRequestIdRef.current += 1;
+    selectionRequestKeyRef.current = '';
+    setSelectedExcerptTranslation(''); setSelectedExcerptError(''); setSelectedExcerptTranslating(false);
+    return () => {
+      selectedExcerptRequestIdRef.current += 1;
+      if (onlineSelectionRequestRef.current) void invoke('selection_translate_cancel', { requestId: onlineSelectionRequestRef.current }).catch(() => {});
+      onlineSelectionRequestRef.current = null;
+    };
+  }, [selectedExcerpt?.text, selectedExcerpt?.source, settings.selectionTranslationProvider, settings.selectionTranslationConsent, settings.translationSourceLanguage, settings.translationTargetLanguage]);
   const [selectedExcerptTranslation, setSelectedExcerptTranslation] =
     useState("");
   const [selectedExcerptTranslating, setSelectedExcerptTranslating] =
     useState(false);
   const [selectedExcerptError, setSelectedExcerptError] = useState("");
+
+  useEffect(() => {
+    let disposed = false; let unlisten: (() => void) | undefined;
+    void listen<{ requestId: string; delta: string }>('paperdesk:selection-translation-delta', ({ payload }) => {
+      if (payload.requestId === onlineSelectionRequestRef.current) setSelectedExcerptTranslation(current => current + payload.delta);
+    }).then(stop => { if (disposed) stop(); else unlisten = stop; }).catch(() => {});
+    return () => { disposed = true; unlisten?.(); };
+  }, []);
 
   const translatedCount = useMemo(
     () => countTranslatedBlocks(blockTranslations),
@@ -841,24 +861,26 @@ export function useDocumentTranslation({
         return;
       }
 
-      if (settings.aiWorkflow === 'web') {
-        if (!window.confirm('将本次划选文字发送给第三方 MyMemory 免费翻译？仅发送所选文字，不发送 PDF 文件。匿名服务有每日配额，所选文字可能被第三方留存，请勿提交保密材料。科研术语及公式请自行核对；不使用付费 API。重复内容优先读取本地缓存。')) return;
+      if (settings.selectionTranslationProvider !== 'local') {
+        if (!settings.selectionTranslationConsent) { setSelectedExcerptError('请先在此栏开启自动翻译。开启一次后不再逐次确认。'); return; }
         const requestId = ++selectedExcerptRequestIdRef.current;
+        const onlineRequestId = crypto.randomUUID(); onlineSelectionRequestRef.current = onlineRequestId;
         selectionRequestKeyRef.current = selectionRequestKey;
         setSelectedExcerptTranslating(true); setSelectedExcerptError('');
         try {
-          const result = await invoke<{ translation: string; cached: boolean }>('translate_selection_free', {
-            text: selectedExcerpt.text, source: settings.translationSourceLanguage === 'auto' ? 'en' : settings.translationSourceLanguage,
-            target: settings.translationTargetLanguage, consent: true,
+          const result = await invoke<{ translation: string; cached: boolean; provider: string }>('selection_translate', {
+            text: selectedExcerpt.text, source: settings.translationSourceLanguage, target: settings.translationTargetLanguage,
+            provider: settings.selectionTranslationProvider, consent: true, requestId: onlineRequestId,
           });
           if (requestId === selectedExcerptRequestIdRef.current) {
             setSelectedExcerptTranslation(result.translation);
-            setStatusMessage(result.cached ? '已读取本地译文缓存（MyMemory）' : 'MyMemory 免费译文已显示，请核查科研术语。');
+            setStatusMessage(result.cached ? '已读取本地译文缓存' : '译文已显示在右侧，请核查科研术语。');
           }
         } catch (error) {
           if (requestId === selectedExcerptRequestIdRef.current) setSelectedExcerptError(error instanceof Error ? error.message : String(error));
         } finally {
           if (requestId === selectedExcerptRequestIdRef.current) { setSelectedExcerptTranslating(false); selectionRequestKeyRef.current = ''; }
+          if (onlineSelectionRequestRef.current === onlineRequestId) onlineSelectionRequestRef.current = null;
         }
         return;
       }
@@ -1010,9 +1032,7 @@ export function useDocumentTranslation({
       selectedExcerpt,
       selectionTranslationModelPreset,
       setStatusMessage,
-      settings.translationRequestsPerMinute,
-      settings.translationSourceLanguage,
-      settings.translationTargetLanguage,
+      settings,
       lRef,
     ],
   );
@@ -1034,6 +1054,9 @@ export function useDocumentTranslation({
   }, []);
 
   const resetSelectedExcerptTranslationState = useCallback(() => {
+    selectedExcerptRequestIdRef.current += 1;
+    if (onlineSelectionRequestRef.current) void invoke('selection_translate_cancel', { requestId: onlineSelectionRequestRef.current }).catch(() => {});
+    onlineSelectionRequestRef.current = null;
     selectionRequestKeyRef.current = "";
     setSelectedExcerptTranslation("");
     setSelectedExcerptTranslating(false);

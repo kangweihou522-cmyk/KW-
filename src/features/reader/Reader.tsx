@@ -1,3 +1,4 @@
+import { ReaderPreferencesContext } from './ReaderPreferencesContext';
 import {
   useCallback,
   useEffect,
@@ -181,9 +182,11 @@ function Reader({ workspaceActive = true }: ReaderProps) {
   const [readerBridges, setReaderBridges] = useState<Record<string, ReaderTabBridgeState>>({});
   const [readerAssistantActivePanel, setReaderAssistantActivePanel] = useState<AssistantPanelKey>('chat');
   const [readerAssistantDetached, setReaderAssistantDetached] = useState(false);
-  const [readerAssistantPanelWidth, setReaderAssistantPanelWidth] = useState(() =>
-    loadStoredNumber(ASSISTANT_PANEL_WIDTH_STORAGE_KEY, 408),
-  );
+  const [readerAssistantPanelWidth, setReaderAssistantPanelWidth] = useState(() => {
+    const stored = loadStoredNumber(ASSISTANT_PANEL_WIDTH_STORAGE_KEY, 408);
+    // Older fresh profiles saved Number(null) as 0, hiding all sidebar content.
+    return stored < MIN_ASSISTANT_PANEL_WIDTH ? 408 : Math.min(stored, Math.max(MIN_ASSISTANT_PANEL_WIDTH, window.innerWidth - 400));
+  });
   const [readerAssistantPanelResizing, setReaderAssistantPanelResizing] = useState(false);
   const [readerQaSessions, setReaderQaSessions] = useState<DocumentChatSession[]>(() => [
     createQaSession(settings.uiLanguage),
@@ -812,6 +815,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
   }, [preferencesOpen, workspaceActive]);
 
   return (
+    <ReaderPreferencesContext.Provider value={{ settings, updateSetting }}>
     <AppLocaleProvider value={settings.uiLanguage}>
       <div className="relative h-full min-h-0 overflow-hidden bg-[#f4f4f4] text-[#202124] dark:bg-[#121212] dark:text-[#e8e8e8]">
         <div className="flex h-full min-h-0 flex-col bg-[#f7f7f7] dark:bg-[#181818]">
@@ -1007,6 +1011,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
         </div>
       </div> : null}
     </AppLocaleProvider>
+    </ReaderPreferencesContext.Provider>
   );
 }
 

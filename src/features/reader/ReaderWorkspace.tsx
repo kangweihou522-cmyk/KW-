@@ -5,7 +5,7 @@ import PdfViewer from '../pdf/PdfViewer';
 import { useLocaleText } from '../../i18n/uiLanguage';
 import { ReaderWorkspaceOverview } from './readerWorkspaceOverview';
 import { ReaderWorkspaceHeader } from './readerWorkspaceHeader';
-import { FloatingAssistantPanel, SelectionQuickActions } from './readerWorkspaceOverlays';
+import { FloatingAssistantPanel } from './readerWorkspaceOverlays';
 import {
   formatReaderDocumentSource,
   type ReaderWorkspaceDocument,
@@ -407,18 +407,6 @@ function ReadingStage(props: ReaderWorkspaceProps & { immersiveReading: boolean 
         </div>
       </div>
 
-      <SelectionQuickActions
-        selectedExcerpt={selectedExcerpt}
-        selectedExcerptTranslation={selectedExcerptTranslation}
-        selectedExcerptTranslating={selectedExcerptTranslating}
-        selectedExcerptError={selectedExcerptError}
-        aiConfigured={aiConfigured}
-        autoTranslateSelection={props.autoTranslateSelection}
-        onAppendSelectedExcerptToQa={onAppendSelectedExcerptToQa}
-        onAddSelectionToNote={onAddSelectionToNote}
-        onTranslateSelectedExcerpt={onTranslateSelectedExcerpt}
-        onClearSelectedExcerpt={onClearSelectedExcerpt}
-      />
     </div>
   );
 }

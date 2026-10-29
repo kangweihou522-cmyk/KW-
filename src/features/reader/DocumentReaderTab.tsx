@@ -3448,6 +3448,7 @@ function DocumentReaderTab({
     () =>
       buildReaderAssistantSidebarProps({
         l: readerLocaleText,
+        aiWorkflow: settings.aiWorkflow,
         activePanel: assistantActivePanel,
         onActivePanelChange: setAssistantActivePanel,
         currentDocument,
@@ -3458,7 +3459,7 @@ function DocumentReaderTab({
         translatedCount,
         statusMessage,
         hasBlocks: flatBlocks.length > 0,
-        aiConfigured,
+        aiConfigured: settings.aiWorkflow === 'web' || aiConfigured,
         notes,
         activeNoteId,
         notePaperCandidates,
@@ -3667,31 +3668,17 @@ function DocumentReaderTab({
   }, [applyMineruPages, currentDocument, pdfPath, pdfSource]);
 
   useEffect(() => {
-    if (
-      !selectedExcerpt ||
-      selectedExcerpt.origin === 'pdf-block' ||
-      !translationConfigured ||
-      !settings.enableSelectionTranslation ||
-      !settings.autoTranslateSelection
-    ) {
-      return;
-    }
-
-    const autoTranslatedSelectionKey = `${selectedExcerpt.createdAt}:${selectedExcerpt.source}:${selectedExcerpt.text}`;
-
-    if (autoTranslatedSelectionKeyRef.current === autoTranslatedSelectionKey) {
-      return;
-    }
-
-    autoTranslatedSelectionKeyRef.current = autoTranslatedSelectionKey;
-    void handleTranslateSelectedExcerpt(false);
-  }, [
-    handleTranslateSelectedExcerpt,
-    selectedExcerpt,
-    settings.autoTranslateSelection,
-    settings.enableSelectionTranslation,
-    translationConfigured,
-  ]);
+    if (!selectedExcerpt || !settings.enableSelectionTranslation) return;
+    setAssistantActivePanel('translate');
+    if (selectedExcerpt.origin === 'pdf-block' || !settings.autoTranslateSelection || !settings.selectionTranslationConsent) return;
+    const key = `${selectedExcerpt.createdAt}:${selectedExcerpt.source}:${selectedExcerpt.text}:${settings.selectionTranslationProvider}`;
+    if (autoTranslatedSelectionKeyRef.current === key) return;
+    const timer = window.setTimeout(() => {
+      autoTranslatedSelectionKeyRef.current = key;
+      void handleTranslateSelectedExcerpt(false);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [handleTranslateSelectedExcerpt, selectedExcerpt, settings.autoTranslateSelection, settings.enableSelectionTranslation, settings.selectionTranslationConsent, settings.selectionTranslationProvider, setAssistantActivePanel]);
 
   useEffect(() => {
     if (!isActive) {

@@ -154,6 +154,8 @@ interface PdfViewerProps {
 
 function resolveToolMode(mode: AnnotationEditorTool) {
   switch (mode) {
+    case 'highlight':
+      return AnnotationEditorType.HIGHLIGHT;
     case 'freetext':
       return AnnotationEditorType.FREETEXT;
     case 'ink':
@@ -1415,11 +1417,8 @@ function PdfViewer({
 
       uiManager.highlightSelection('paperquay_toolbar');
 
-      pdfViewer.annotationEditorMode = {
-        mode: AnnotationEditorType.NONE,
-        isFromKeyboard: false,
-      };
-      await waitForAnnotationEditorMode(AnnotationEditorType.NONE);
+      setEditorTool('highlight');
+      editorToolRef.current = 'highlight';
       setBooleanStateIfChanged(setHasLiveTextSelection, false);
     } catch (highlightError) {
       setDocumentError(
@@ -1652,6 +1651,22 @@ function PdfViewer({
     },
     [clearPendingBlockSelect, clearSelectionCommitTimer],
   );
+
+  useEffect(() => {
+    if (!active) return;
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isEditableTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === 's') { event.preventDefault(); void handleSave(); }
+      else if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (key === 'h') { event.preventDefault(); setActiveColorTool('highlight'); setEditorTool(current => current === 'highlight' ? 'none' : 'highlight'); }
+        else if (key === 't') { event.preventDefault(); setActiveColorTool('freetext'); setEditorTool('freetext'); }
+        else if (key === 'escape') { setEditorTool('none'); annotationEditorUiManagerRef.current?.unselectAll(); }
+      }
+    };
+    document.addEventListener('keydown', handleShortcut);
+    return () => document.removeEventListener('keydown', handleShortcut);
+  }, [active, handleSave]);
 
   useEffect(() => {
     if (!active || !hasSelectedEditor) {
@@ -2130,6 +2145,17 @@ function PdfViewer({
     };
 
     const handleMouseSelectionCommit = (event: MouseEvent) => {
+      if (editorToolRef.current === 'highlight') {
+        // PDF.js normally commits on pointerup. Also cover very fast drags where
+        // selectionchange arrived too late to register that pointerup listener.
+        window.setTimeout(() => {
+          if (editorToolRef.current === 'highlight' && selectionBelongsToContainer(containerRef.current) && hasActiveTextSelection()) {
+            const anchor = window.getSelection()?.anchorNode?.parentElement;
+            if (anchor?.closest('.textLayer')) annotationEditorUiManagerRef.current?.highlightSelection('paperdesk_continuous_highlight');
+          }
+        }, 0);
+        return;
+      }
       if (editorToolRef.current !== 'none') {
         return;
       }
@@ -2723,11 +2749,11 @@ function PdfViewer({
             setEditorTool('freetext'); setActiveColorTool('freetext');
             window.setTimeout(() => {
               const editor = [...(manager?.getEditors(entry.pageIndex) ?? [])].find((candidate: any) => candidate.annotationElementId === entry.id.slice(6));
-              if (editor) { manager.setSelected(editor); editor.div?.scrollIntoView({ block: 'center' }); editor.div?.focus(); }
+              if (editor) { const type = editor.constructor._type; if (['highlight', 'freetext', 'ink'].includes(type)) setActiveColorTool(type); manager.setSelected(editor); editor.div?.scrollIntoView({ block: 'center' }); editor.div?.focus(); }
             }, 200);
           } else {
             const editor = manager?.getEditor(entry.id);
-            if (editor) { manager.setSelected(editor); editor.div?.scrollIntoView({ block: 'center' }); editor.div?.focus(); }
+            if (editor) { const type = editor.constructor._type; if (['highlight', 'freetext', 'ink'].includes(type)) setActiveColorTool(type); manager.setSelected(editor); editor.div?.scrollIntoView({ block: 'center' }); editor.div?.focus(); }
           }
         }}>第 {entry.pageIndex + 1} 页 · {entry.text}</button>)}
         <p className="text-slate-500">此列表包含已保存的 PDF 批注和当前已加载页面的新批注。点击定位后可修改颜色、编辑文本或删除，再保存批注 PDF。</p>
@@ -2758,6 +2784,7 @@ function PdfViewer({
 
         <div
           ref={containerRef}
+          data-pdf-tool={editorTool}
           className={cn(
             'pdf-annotation-scroll absolute inset-0 overflow-auto px-5 pt-5',
             showReadingHeatmapBar ? 'pb-24' : 'pb-5',

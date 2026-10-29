@@ -27,7 +27,7 @@ import {
 
 type Localize = (zh: string, en: string) => string;
 
-export type AnnotationEditorTool = 'none' | 'freetext' | 'ink';
+export type AnnotationEditorTool = 'none' | 'highlight' | 'freetext' | 'ink';
 
 type ToolbarToolKey = 'select' | 'highlight' | 'freetext' | 'ink';
 type EditableToolbarToolKey = Extract<ToolbarToolKey, 'freetext' | 'ink'>;
@@ -161,7 +161,8 @@ export function PdfViewerToolbar({
               onClick={() => {
                 if (item.key === 'highlight') {
                   onActiveColorToolChange('highlight');
-                  void onCreateHighlight();
+                  if (hasLiveTextSelection && editorTool === 'none') void onCreateHighlight();
+                  else onEditorToolChange((current) => current === 'highlight' ? 'none' : 'highlight');
                   return;
                 }
 
@@ -174,18 +175,14 @@ export function PdfViewerToolbar({
                 onActiveColorToolChange(editableTool);
                 onEditorToolChange((current) => (current === editableTool ? 'none' : editableTool));
               }}
-              disabled={
-                item.key === 'highlight'
-                  ? !hasLiveTextSelection || editorTool !== 'none' || loading || saving
-                  : loading || saving
-              }
+              disabled={loading || saving}
+              aria-pressed={item.key === 'select' ? editorTool === 'none' : editorTool === item.key}
               title={getToolLabel(item.key)}
               aria-label={getToolLabel(item.key)}
               className={cn(
-                'inline-flex h-10 w-10 items-center justify-center rounded-xl border text-slate-500 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55',
+                'inline-flex h-10 min-w-16 gap-1 px-2 items-center justify-center rounded-xl border text-slate-500 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55',
                 ((item.key === 'select' && editorTool === 'none') ||
                   (item.key !== 'select' &&
-                    item.key !== 'highlight' &&
                     editorTool === item.key))
                   ? 'border-indigo-200 bg-white text-indigo-600 shadow-[0_8px_18px_rgba(79,70,229,0.12)] dark:border-indigo-400/30 dark:bg-[var(--pq-surface-2)] dark:text-indigo-400 dark:shadow-[0_8px_18px_rgba(79,70,229,0.18)]'
                   : 'border-transparent bg-transparent hover:border-slate-200 hover:bg-white hover:text-slate-800 dark:hover:border-white/15 dark:hover:bg-[var(--pq-surface-2)] dark:hover:text-[var(--pq-text)]',
@@ -207,6 +204,7 @@ export function PdfViewerToolbar({
                 <button
                   key={`${activeColorTool}-${preset.id}`}
                   type="button"
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => onAnnotationToolColorChange(activeColorTool, colorValue)}
                   className={cn(
                     'h-6 w-6 rounded-full border-2 transition-all duration-200',
@@ -324,11 +322,12 @@ export function PdfViewerToolbar({
             ) : (
               <Download className="mr-2 h-4 w-4" strokeWidth={1.8} />
             )}
-            {saving ? l('正在导出...', 'Exporting...') : l('导出批注 PDF', 'Export Annotated PDF')}
+            {saving ? l('正在保存...', 'Saving...') : l('保存批注 PDF', 'Save Annotated PDF')}
           </button>
         </div>
       </div>
 
+      <p className="mt-2 text-xs text-slate-500">{editorTool === 'highlight' ? l('高亮模式：连续划选即可标记；点击颜色切换。H / Esc 退出，Ctrl+S 保存。', 'Highlight mode: drag repeatedly to mark text; choose a color. H / Esc exits, Ctrl+S saves.') : l('H 切换高亮；T 文本批注；Esc 返回选择；Ctrl+S 保存，原 PDF 保留。', 'H highlights; T adds text; Esc selects; Ctrl+S saves a separate annotated PDF.')}</p>
       {saveMessage ? <div className="mt-2 text-xs text-emerald-600">{saveMessage}</div> : null}
       {documentError ? <div className="mt-2 text-xs text-rose-600">{documentError}</div> : null}
       {translating && translationProgressTotal > 0 ? (

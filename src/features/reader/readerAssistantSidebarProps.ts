@@ -4,6 +4,7 @@ import type { LocaleTextFn, ReaderWorkspaceDocument } from './readerWorkspaceSha
 import { formatReaderDocumentMeta } from './readerWorkspaceShared';
 
 export interface BuildReaderAssistantSidebarInput {
+  aiWorkflow?: 'web' | 'local';
   l: LocaleTextFn;
   activePanel: AssistantPanelKey;
   onActivePanelChange: (panel: AssistantPanelKey) => void;
@@ -79,6 +80,8 @@ export function buildReaderAssistantSidebarProps(
   return {
     activePanel: input.activePanel,
     onActivePanelChange: input.onActivePanelChange,
+    aiWorkflow: input.aiWorkflow,
+    paperId: input.currentDocument.source === 'native-library' ? input.currentDocument.itemKey : undefined,
     documentTitle: input.currentDocument.title,
     documentMeta: formatReaderDocumentMeta(input.l, input.currentDocument),
     documentSource: input.documentSource,

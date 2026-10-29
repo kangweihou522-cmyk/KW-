@@ -655,6 +655,7 @@ export function NoteEditor({
   const loadedNoteIdRef = useRef<string | null>(null);
   const appliedUpdatedAtRef = useRef<number | null>(note?.updatedAt ?? null);
   const dirtyRef = useRef(false);
+  const userEditedNoteIdRef = useRef<string | null>(null);
   const externalUpdateAvailableRef = useRef(false);
   const forceApplyIncomingRef = useRef(false);
   const lastSelectionRef = useRef<{ from: number; to: number } | null>(null);
@@ -1244,6 +1245,7 @@ export function NoteEditor({
     });
     const noteId = note?.id ?? null;
     const sameNote = loadedNoteIdRef.current === noteId;
+    if (!sameNote) userEditedNoteIdRef.current = null;
     const forceApplyIncoming = forceApplyIncomingRef.current;
     forceApplyIncomingRef.current = false;
     const incomingUpdatedAt = note?.updatedAt ?? 0;
@@ -1264,6 +1266,7 @@ export function NoteEditor({
       (!sameNote || !dirtyRef.current || localSignature === incomingSignature);
 
     if (canRestoreDraft) {
+      userEditedNoteIdRef.current = noteId;
       setTitle(draft.title);
       setTagText(draft.tagText);
       setColor(draft.color);
@@ -1434,6 +1437,7 @@ export function NoteEditor({
     for (const anchorId of Array.from(pendingAnchorsRef.current.keys())) {
       if (!contentAnchorIds.has(anchorId)) pendingAnchorsRef.current.delete(anchorId);
     }
+    userEditedNoteIdRef.current = null;
     appliedUpdatedAtRef.current = updatedNote?.updatedAt ?? note.updatedAt ?? Date.now();
     setExternalUpdateState(false, note.id);
     lastSavedSignatureRef.current = signature({ title: nextTitle, tagText, color, snapshot });
@@ -1449,6 +1453,7 @@ export function NoteEditor({
         : externalNoteRef.current ?? note);
     if (!incomingNote) return;
 
+    userEditedNoteIdRef.current = null;
     const incomingSnapshot = snapshotFromNote(incomingNote);
     const nextTitle = incomingNote.title ?? '';
     const nextTagText = incomingNote.tags.join(', ');
@@ -1481,7 +1486,7 @@ export function NoteEditor({
     const openSavedReport = (event: Event) => {
       const incoming = (event as CustomEvent<Note>).detail;
       if (!note || incoming?.id !== note.id) return;
-      if (dirtyRef.current && !window.confirm('打开已保存报告会替换当前编辑器中未保存的修改。请确认已复制需要保留的内容。继续？')) return;
+      if (dirtyRef.current && userEditedNoteIdRef.current === incoming.id && !window.confirm('打开已保存报告会替换当前编辑器中未保存的修改。请确认已复制需要保留的内容。继续？')) return;
       refreshFromExternalUpdate(incoming);
     };
     window.addEventListener('paperdesk:edit-saved-report', openSavedReport);
@@ -1565,6 +1570,11 @@ export function NoteEditor({
         'flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--pq-radius-md)] border border-[var(--pq-border)] bg-[var(--pq-surface-1)]',
         compact ? 'pq-note-editor-compact' : '',
       )}
+      onInputCapture={event => { if (event.nativeEvent.isTrusted) userEditedNoteIdRef.current = note.id; }}
+      onChangeCapture={event => { if (event.nativeEvent.isTrusted) userEditedNoteIdRef.current = note.id; }}
+      onClickCapture={event => { if (event.nativeEvent.isTrusted && (event.target as HTMLElement).closest('button')) userEditedNoteIdRef.current = note.id; }}
+      onPasteCapture={event => { if (event.nativeEvent.isTrusted) userEditedNoteIdRef.current = note.id; }}
+      onDropCapture={event => { if (event.nativeEvent.isTrusted) userEditedNoteIdRef.current = note.id; }}
       onKeyDown={handleEditorKeyDown}
     >
       <div className={cn('border-b border-[var(--pq-border)]', compact ? 'px-3 py-2.5' : 'px-4 py-3')}>

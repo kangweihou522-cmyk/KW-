@@ -7,7 +7,7 @@ import type { Note } from '../types/notes';
 
 export async function getChatGptReport(paperId: string) {
   return (await listNotes({ paperId })).find((note) =>
-    note.tags.includes('ChatGPT手动回填') && note.tags.includes('读书报告')) ?? null;
+    (note.tags.includes('ChatGPT手动回填') || note.tags.includes('ChatGPT报告')) && note.tags.includes('读书报告')) ?? null;
 }
 export async function saveChatGptReport(paperId: string, title: string, text: string, previous: Note | null) {
   const request = buildReportNoteRequest({ paperId, title: `${title} · ChatGPT`, text, source: 'chatgpt-manual' });

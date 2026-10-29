@@ -297,7 +297,7 @@ function App() {
               <div className="truncate text-[13px] font-semibold tracking-normal text-[var(--pq-text)]">
                 PaperDesk
               </div>
-              <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-700 md:inline">{isEnglish ? 'Local · Plus optional' : '本地运行 · 无需 Plus'}</span>
+              <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-700 md:inline">{isEnglish ? 'Local data · Connect as needed' : '本地资料 · 按需连接账户'}</span>
               <div className="hidden h-4 w-px bg-[var(--pq-border)] sm:block" />
               <div className="pq-tab-surface hidden h-6 items-center px-2.5 text-xs font-medium text-[var(--pq-text-muted)] sm:flex">
                 {activeWorkspaceLabel}

@@ -1,7 +1,7 @@
 {
   "name": "paperdesk",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Local-first, no-paid-API literature workstation. Independent PaperQuay-derived edition.",
   "author": {
     "name": "PaperDesk contributors (derived from PaperQuay)"
@@ -47,13 +47,14 @@
     "eventsource-parser": "^3.1.0",
     "lowlight": "^3.3.0",
     "mathml2omml": "^0.5.0",
+    "pdfjs-dist": "4.8.69",
     "pizzip": "^3.2.0",
     "sql.js": "^1.13.0",
     "sqlite-vec": "^0.1.9",
-    "temml": "^0.13.3",
-    "pdfjs-dist": "4.8.69"
+    "temml": "^0.13.3"
   },
   "devDependencies": {
+    "@openai/codex": "0.165.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -75,6 +76,7 @@
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^3.4.15",
+    "tar": "7.5.15",
     "typescript": "^5.6.3",
     "vite": "^8.0.14",
     "zustand": "^5.0.12"
@@ -184,6 +186,10 @@
           "**/*.py",
           "requirements.txt"
         ]
+      },
+      {
+        "from": "release/codex-runtime",
+        "to": "codex-runtime"
       }
     ]
   }

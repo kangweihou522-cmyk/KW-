@@ -1574,3 +1574,9 @@ textarea,
     animation: none;
   }
 }
+
+/* While painting, drag through existing highlights. Use Select or the list to edit them. */
+.pdf-annotation-scroll[data-pdf-tool="highlight"] .highlightEditor,
+.pdf-annotation-scroll[data-pdf-tool="highlight"] .highlightEditor * {
+  pointer-events: none !important;
+}

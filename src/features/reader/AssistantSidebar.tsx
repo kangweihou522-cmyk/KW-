@@ -1,3 +1,4 @@
+import { ChatGptAssist } from './ChatGptAssist';
 ﻿import {
   ExternalLink,
   FileText,
@@ -36,6 +37,8 @@ import {
 import { SectionCard, SelectionPanel, SummaryPanel } from './assistantSidebarPrimitives';
 
 export interface AssistantSidebarCoreProps {
+  aiWorkflow?: 'web' | 'local';
+  paperId?: string;
   activePanel: AssistantPanelKey;
   onActivePanelChange: (panel: AssistantPanelKey) => void;
   documentTitle?: string;
@@ -116,6 +119,7 @@ export interface AssistantSidebarChromeProps {
 export type AssistantSidebarProps = AssistantSidebarCoreProps & AssistantSidebarChromeProps;
 
 function AssistantSidebar({
+  aiWorkflow, paperId,
   activePanel,
   onActivePanelChange,
   panelWidth = 408,
@@ -232,7 +236,8 @@ function AssistantSidebar({
       >
         <div className="flex h-full flex-col" style={{ width: panelWidth, minWidth: panelWidth }}>
           <div className="min-h-0 flex-1">
-            {activePanel === 'chat' ? (
+            {activePanel === 'chat' && aiWorkflow === 'web' && paperId ? <div className="h-full overflow-y-auto p-3"><ChatGptAssist paperId={paperId} paperTitle={documentTitle} /></div> : null}
+            {activePanel === 'chat' && (aiWorkflow !== 'web' || !paperId) ? (
               <ChatWorkspacePanel
                 sessions={qaSessions}
                 selectedSessionId={selectedQaSessionId}

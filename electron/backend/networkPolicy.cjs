@@ -1,5 +1,5 @@
-// PaperDesk modification: the desktop backend never calls hosted AI/services.
-// ChatGPT assistance opens the user's browser only after an explicit action.
+// Generic model fetch stays local. Opted-in ChatGPT account tasks use the
+// isolated official client; free translation has separate fixed-host commands.
 function assertLocalUrl(input) {
   let url;
   try {
@@ -10,7 +10,7 @@ function assertLocalUrl(input) {
   const host = url.hostname.toLowerCase();
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
       !(host === 'localhost' || host === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(host))) {
-    throw new Error('本地模式已阻止外部服务请求。请使用本机 Ollama；ChatGPT 辅助请通过浏览器手动提交选定材料。');
+    throw new Error('本地模式已阻止通用外部服务请求。ChatGPT 请使用账户连接；在线划词翻译请在右侧选择专用渠道。');
   }
   return url;
 }
