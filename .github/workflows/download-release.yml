@@ -69,6 +69,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             release/downloads/PaperDesk-*-Windows.zip \
             release/downloads/PaperDesk-*-Source.zip \
+            release/downloads/*.argosmodel \
             release/downloads/SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \

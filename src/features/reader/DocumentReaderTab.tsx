@@ -3670,7 +3670,7 @@ function DocumentReaderTab({
   useEffect(() => {
     if (!selectedExcerpt || !settings.enableSelectionTranslation) return;
     setAssistantActivePanel('translate');
-    if (selectedExcerpt.origin === 'pdf-block' || !settings.autoTranslateSelection || !settings.selectionTranslationConsent) return;
+    if (selectedExcerpt.origin === 'pdf-block' || !settings.autoTranslateSelection || settings.selectionTranslationProvider !== 'offline' && !settings.selectionTranslationConsent) return;
     const key = `${selectedExcerpt.createdAt}:${selectedExcerpt.source}:${selectedExcerpt.text}:${settings.selectionTranslationProvider}`;
     if (autoTranslatedSelectionKeyRef.current === key) return;
     const timer = window.setTimeout(() => {
@@ -3679,6 +3679,16 @@ function DocumentReaderTab({
     }, 250);
     return () => window.clearTimeout(timer);
   }, [handleTranslateSelectedExcerpt, selectedExcerpt, settings.autoTranslateSelection, settings.enableSelectionTranslation, settings.selectionTranslationConsent, settings.selectionTranslationProvider, setAssistantActivePanel]);
+
+  useEffect(() => {
+    const ready = () => {
+      if (settings.selectionTranslationProvider !== 'offline' || !settings.autoTranslateSelection || !selectedExcerpt || selectedExcerpt.origin === 'pdf-block') return;
+      setAssistantActivePanel('translate');
+      void handleTranslateSelectedExcerpt(false);
+    };
+    window.addEventListener('paperdesk:offline-translation-ready', ready);
+    return () => window.removeEventListener('paperdesk:offline-translation-ready', ready);
+  }, [handleTranslateSelectedExcerpt, selectedExcerpt, settings.autoTranslateSelection, settings.selectionTranslationProvider, setAssistantActivePanel]);
 
   useEffect(() => {
     if (!isActive) {

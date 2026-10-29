@@ -1,0 +1,20 @@
+PaperDesk offline English-to-Chinese translation
+
+The Python, CTranslate2, SentencePiece, NumPy, PyYAML and pySBD distributions
+are obtained from the fixed official package URLs in components.json and
+verified before extraction. Their original licenses and notices remain in
+python/LICENSE.txt and the corresponding Lib/site-packages/*.dist-info
+directories. No system Python installation is modified.
+
+MSVCP140.dll is an app-local copy of the Microsoft Visual C++ runtime already
+included in the verified NumPy Windows wheel. The other VC runtime DLLs are
+included in the official Python distribution. These Microsoft components retain
+their Microsoft copyrights and redistribution terms; they are not relicensed
+under PaperDesk's AGPL license. Microsoft runtime license information:
+https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/
+
+The separately downloaded Argos model retains the license and notices shipped
+inside its original language package. See docs/OFFLINE_TRANSLATION.md and the
+model metadata. Runtime components and model files are not claimed as original
+PaperDesk work. No cloud translation endpoint, account credential or paid API is
+used by the Python translation worker.

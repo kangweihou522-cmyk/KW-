@@ -174,9 +174,9 @@ export function buildRagSourceOptions(locale: UiLanguage): Array<{
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
   aiWorkflow: 'web',
-  selectionTranslationProvider: 'chatgpt',
+  selectionTranslationProvider: 'offline',
   selectionTranslationConsent: false,
-  selectionTranslationVersion: 2,
+  selectionTranslationVersion: 3,
   uiLanguage: 'zh-CN',
   autoLoadSiblingJson: false,
   autoMineruParse: true,
@@ -759,9 +759,11 @@ export function normalizeReaderSettings(value?: Partial<ReaderSettings> | null):
     ...merged,
     aiWorkflow: merged.aiWorkflow === 'local' ? 'local' : 'web',
     autoGenerateSummary: merged.aiWorkflow === 'local' && merged.autoGenerateSummary === true,
-    autoTranslateSelection: value?.selectionTranslationVersion === 2 ? merged.autoTranslateSelection !== false : true,
-    selectionTranslationVersion: 2,
-    selectionTranslationProvider: ['chatgpt', 'deepl-free', 'mymemory', 'local'].includes(merged.selectionTranslationProvider) ? merged.selectionTranslationProvider : 'chatgpt',
+    autoTranslateSelection: (value?.selectionTranslationVersion ?? 0) >= 2 ? merged.autoTranslateSelection !== false : true,
+    selectionTranslationVersion: 3,
+    selectionTranslationProvider: (value?.selectionTranslationVersion ?? 0) < 3 && merged.selectionTranslationProvider === 'chatgpt'
+      ? 'offline'
+      : ['offline', 'chatgpt', 'deepl-free', 'mymemory', 'local'].includes(merged.selectionTranslationProvider) ? merged.selectionTranslationProvider : 'offline',
     selectionTranslationConsent: merged.selectionTranslationConsent === true,
     uiLanguage: merged.uiLanguage === 'en-US' ? 'en-US' : 'zh-CN',
     localRagEnabled: merged.localRagEnabled !== false,

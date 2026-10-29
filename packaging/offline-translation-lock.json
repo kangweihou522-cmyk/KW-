@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "engine": "CTranslate2",
+  "python": {
+    "version": "3.12.10",
+    "name": "python.3.12.10.nupkg",
+    "url": "https://api.nuget.org/v3-flatcontainer/python/3.12.10/python.3.12.10.nupkg",
+    "sha256": "0eb85c2dfccccf1b17352de4c397f69194035b7d37149eacc16f1147d93de3b8",
+    "bytes": 14515433
+  },
+  "wheels": [
+    {
+      "name": "ctranslate2-4.8.4-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/af/25/cca7f6807d37cbfd9eebed8bbf136f5214c31d7d66de267ad05b676e9deb/ctranslate2-4.8.4-cp312-cp312-win_amd64.whl",
+      "sha256": "056db4b4c2a31b7811d453155a3d6ab316ddb1dc104f413beee7bce26bcbf92d",
+      "bytes": 20371102
+    },
+    {
+      "name": "sentencepiece-0.2.2-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/8d/11/753fca2e6b109be3ab7867abf357dfe48677fe726ae5a5363d0b54ca9450/sentencepiece-0.2.2-cp312-cp312-win_amd64.whl",
+      "sha256": "7c6e7bf684dc12145bfa685d3060beaea55139134ba848289bee514ed42e7383",
+      "bytes": 1248030
+    },
+    {
+      "name": "numpy-2.2.6-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/36/fa/8c9210162ca1b88529ab76b41ba02d433fd54fecaf6feb70ef9f124683f1/numpy-2.2.6-cp312-cp312-win_amd64.whl",
+      "sha256": "c1f9540be57940698ed329904db803cf7a402f3fc200bfe599334c9bd84a40b2",
+      "bytes": 12614190
+    },
+    {
+      "name": "PyYAML-6.0.2-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/0c/e8/4f648c598b17c3d06e8753d7d13d57542b30d56e6c2dedf9c331ae56312e/PyYAML-6.0.2-cp312-cp312-win_amd64.whl",
+      "sha256": "7e7401d0de89a9a855c839bc697c079a4af81cf878373abd7dc625847d25cbd8",
+      "bytes": 156338
+    },
+    {
+      "name": "pysbd-0.3.4-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/48/0a/c99fb7d7e176f8b176ef19704a32e6a9c6aafdf19ef75a187f701fc15801/pysbd-0.3.4-py3-none-any.whl",
+      "sha256": "cd838939b7b0b185fcf86b0baf6636667dfb6e474743beeff878e9f42e022953",
+      "bytes": 71082
+    }
+  ],
+  "model": {
+    "id": "argos-en-zh-1.9",
+    "from": "en",
+    "to": "zh",
+    "version": "1.9",
+    "name": "translate-en_zh-1_9.argosmodel",
+    "upstreamUrl": "https://argos-net.com/v1/translate-en_zh-1_9.argosmodel",
+    "downloadUrl": "https://github.com/kangweihou522-cmyk/KW-/releases/download/paperdesk-v0.4.1/translate-en_zh-1_9.argosmodel",
+    "sha256": null,
+    "bytes": null,
+    "license": "To be verified from the official package before release"
+  }
+}

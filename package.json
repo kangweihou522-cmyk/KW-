@@ -1,7 +1,7 @@
 {
   "name": "paperdesk",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Local-first, no-paid-API literature workstation. Independent PaperQuay-derived edition.",
   "author": {
     "name": "PaperDesk contributors (derived from PaperQuay)"
@@ -136,7 +136,8 @@
       "TRADEMARKS.md",
       "UPSTREAM.md",
       "node_modules/pdfjs-dist/**/*",
-      "scripts/ocr/**/*"
+      "scripts/ocr/**/*",
+      "packaging/offline-translation-lock.json"
     ],
     "mac": {
       "target": "dmg",
@@ -190,6 +191,10 @@
       {
         "from": "release/codex-runtime",
         "to": "codex-runtime"
+      },
+      {
+        "from": "release/offline-translation",
+        "to": "offline-translation"
       }
     ]
   }

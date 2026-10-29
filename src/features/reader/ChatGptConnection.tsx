@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../platform/electron/core';
 import { useLocaleText } from '../../i18n/uiLanguage';
+import { openExternalUrl } from '../../services/desktop';
 interface Account { connected: boolean; plan?: string | null; }
 export function ChatGptConnection() {
   const l = useLocaleText();
@@ -21,7 +22,9 @@ export function ChatGptConnection() {
       })()}>{account.connected ? l('断开连接', 'Disconnect') : connecting ? l('等待浏览器登录…', 'Waiting for browser sign-in…') : l('浏览器授权连接 ChatGPT', 'Connect ChatGPT in browser')}</button>
       <button type="button" className="pq-button px-2 py-1" onClick={() => void refresh()}>{l('刷新状态', 'Refresh')}</button>
     </div>
-    <details open={!account.connected}><summary className="cursor-pointer text-slate-500">{account.connected ? '账户额度与连接说明' : '仅需浏览器授权，不用安装桌面客户端'}</summary><p className="leading-5">{l('只需在系统浏览器完成 OpenAI 官方 Codex 授权，无需安装或登录 Codex 桌面客户端。连接后可在工作站直接生成报告、问答和划词翻译，不再手动上传 PDF 或粘贴回答。只使用服务端确认可用的套餐内 Codex 额度；无法确认或额度用尽时停止，不购买或转用付费额度。账户权限由 OpenAI 决定，不承诺免费账户长期可用。', 'Sign in through official OpenAI Codex. Use reports, questions and selection translation in PaperDesk with your available Codex allowance. Account eligibility and limits apply; no paid API fallback.')}</p></details>
+    <p className="leading-5">{l('账户连接是可选功能。离线划词翻译和本地报告阅读无需登录。自动生成报告、问答使用官方 Codex 授权及账户可用额度；OpenAI 可能要求手机号验证，网页 ChatGPT 已登录也不保证授权成功。', 'Account connection is optional. Offline translation and saved reports require no login. Automated reports and questions use official Codex authorization; OpenAI may require additional account verification.')}</p>
+    <button type="button" className="pq-button px-2 py-1" onClick={() => void openExternalUrl('https://chatgpt.com/').catch(error => setError(String(error)))}>打开 ChatGPT 网页（无需 Codex）</button>
+    <details><summary className="cursor-pointer text-slate-500">网页登录、自动连接与费用说明</summary><p className="mt-2 leading-5">{l('可继续在浏览器用原有 Google 账号聊天；打开网页不会自动上传或分析本地文献。网页会话不能直接当作免费 API，Plus 也不附带免费的 API 调用。工作站无法取消服务方的手机号要求，不会复制网页登录凭据。自动连接仅使用服务端确认可用的套餐内 Codex 额度；无法确认或额度用尽时停止，不购买或转用付费额度。免费账户的可用性由 OpenAI 决定。', 'Browser chat remains available separately; it does not automatically access local papers. A website session or Plus subscription is not a free API. Only confirmed included Codex usage is used, with no paid fallback.')}</p></details>
     {error ? <p role="status" className="text-rose-600">{error}</p> : null}
   </div>;
 }

@@ -49,7 +49,7 @@ class ChatGptBridge {
     child.stderr.on('data', () => {});
     child.on('error', () => this.close(new Error('ChatGPT 连接组件无法启动。')));
     child.on('exit', () => { if (this.child === child) this.close(new Error('ChatGPT 连接已断开，请重试连接。')); });
-    await this.rpc('initialize', { clientInfo: { name: 'paperdesk', title: 'PaperDesk literature workstation', version: '0.4.0' }, capabilities: { experimentalApi: false } });
+    await this.rpc('initialize', { clientInfo: { name: 'paperdesk', title: 'PaperDesk literature workstation', version: require('../../package.json').version }, capabilities: { experimentalApi: false } });
     this.send({ method: 'initialized', params: {} });
   }
   send(message) { if (!this.child?.stdin?.writable) throw new Error('ChatGPT 尚未连接。'); this.child.stdin.write(JSON.stringify(message) + '\n'); }

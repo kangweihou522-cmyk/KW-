@@ -1,8 +1,11 @@
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from 'react';
+import { version as APP_VERSION } from '../../package.json';
+import { openExternalUrl } from '../services/desktop';
 import {
   Bot,
   BookOpenCheck,
   FilePlus2,
+  ExternalLink,
   GitBranch,
   Library,
   Minus,
@@ -295,7 +298,7 @@ function App() {
                 />
               </div>
               <div className="truncate text-[13px] font-semibold tracking-normal text-[var(--pq-text)]">
-                PaperDesk
+                PaperDesk <span className="text-[11px] font-normal text-[var(--pq-text-muted)]">{APP_VERSION}</span>
               </div>
               <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-700 md:inline">{isEnglish ? 'Local data · Connect as needed' : '本地资料 · 按需连接账户'}</span>
               <div className="hidden h-4 w-px bg-[var(--pq-border)] sm:block" />
@@ -312,6 +315,7 @@ function App() {
           />
 
           <div className="flex h-full items-center">
+            <button type="button" className="pq-button mr-2 flex items-center gap-1 px-2 py-1 text-xs" title="打开 ChatGPT 网页，不要求 Codex 授权；不会自动提交本地文件" onClick={() => void openExternalUrl('https://chatgpt.com/').catch(error => window.alert(String(error)))}><ExternalLink className="h-3.5 w-3.5" />ChatGPT 网页</button>
             <button
               type="button"
               onClick={handleOpenStandalonePdf}

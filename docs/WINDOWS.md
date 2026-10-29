@@ -1,10 +1,10 @@
 # Windows 11 本地安装与更新
 
-PaperDesk 是 PaperQuay 派生的独立版本。核心阅读、笔记和本地 AI 不要求 ChatGPT Plus，不设置付费 API。ChatGPT 辅助通过你主动打开浏览器、提交选定材料和回填回答完成；取消 Plus 后仍可使用普通账户网页，网页额度由账户本身决定。
+PaperDesk 是 PaperQuay 派生的独立版本。阅读、笔记、批注和默认离线英中翻译不要求 ChatGPT/Codex 登录，也不启动 Ollama。ChatGPT 网页可以单独使用；自动报告和问答使用可选的官方 Codex 授权，可能要求手机号验证。Plus/普通账户不附带免费 API，不配置付费 API 或购买额度。
 
 ## 安装位置
 
-默认根目录 `D:\PaperDesk`；`app` 保存可替换程序，`data` 保存数据库、配置及笔记，`library` 保存管理的文献，`models` 保存 Ollama 模型，`backups` 保存备份，`tools` 保存快捷启动等脚本。程序启动还会将 Chromium 配置和缓存放在这个根目录。
+默认根目录 `D:\PaperDesk`；`app` 保存可替换程序，`data` 保存数据库、配置及笔记，`library` 保存管理的文献，`models` 保存可选 Ollama 模型及 `translation` 下的独立翻译语言包，`backups` 保存备份，`tools` 保存快捷启动等脚本。程序启动还会将 Chromium 配置和缓存放在这个根目录。
 
 如果没有 D 盘，程序报出明确错误，不自动改存 C 盘。可在安装脚本使用 `-Root "E:\My Papers\PaperDesk"`，或设置用户环境变量 `PAPERDESK_HOME` 为绝对目录。不要指定整个盘符根目录。
 
@@ -52,7 +52,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Setup-
 
 ## 更新与数据保留
 
-目前没有已验证可用的远程 PaperDesk 发布通道，程序不声称有可下载的新版本，也不自动查询或安装上游更新。`Update` 快捷方式显示本仓库的 releases 地址，要求你选择可信发布者提供的 **PaperDesk Windows `.zip` 更新包及其 SHA256**。
+更新包由[本仓库 GitHub Releases](https://github.com/kangweihou522-cmyk/KW-/releases)提供。`Update` 快捷方式要求选择本独立版的 **PaperDesk Windows `.zip` 更新包及对应 SHA256**，不自动安装上游版本。已有安装直接校验更新，不要重复首次安装；更新后标题栏显示版本号。正确启动入口为 `D:\PaperDesk\tools\Start-PaperDesk.ps1`，实际程序为 `D:\PaperDesk\app\PaperDesk.exe`。
 
 校验不符会停止。匹配后先检查 ZIP 每个条目，拒绝绝对路径、`..`、备用数据流、重复路径和符号链接，再解压到根目录下独立临时文件夹；只有恰好一个 `PaperDesk.exe` 且包含 `resources/app.asar` 和辅助脚本目录时才继续。随后备份资料，把旧程序移到 `backups/app-before-update-*`，复制新程序，保留旧版供恢复。更新失败会尝试回滚旧程序和辅助脚本，并显示备份位置；不执行 ZIP 内脚本来安装。程序目录与文献数据库分开，保留数据不代表永远无须备份。
 

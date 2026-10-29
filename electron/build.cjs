@@ -1,5 +1,6 @@
 const { spawn } = require('node:child_process');
 const { prepareCodexRuntime } = require('../scripts/prepare-codex-runtime.cjs');
+const { prepareOfflineRuntime } = require('../scripts/prepare-offline-translation.cjs');
 
 // Use Electron/electron-builder official sources by default. Respect explicitly
 // configured mirrors without replacing TLS or artifact checksum verification.
@@ -28,6 +29,7 @@ const args = process.argv.slice(2);
 const platform = args.includes('--win') ? 'win32' : args.includes('--mac') ? 'darwin' : args.includes('--linux') ? 'linux' : process.platform;
 const arch = args.includes('--arm64') ? 'arm64' : args.includes('--x64') ? 'x64' : process.arch;
 await prepareCodexRuntime(platform, arch);
+await prepareOfflineRuntime(platform, arch);
 const child = spawn(process.execPath, [require.resolve('electron-builder/out/cli/cli.js'), ...process.argv.slice(2)], {
   stdio: 'inherit',
   env,

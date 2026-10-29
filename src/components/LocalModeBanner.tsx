@@ -29,7 +29,7 @@ export default function LocalModeBanner() {
     <div className="shrink-0 border-b border-emerald-200/70 bg-emerald-50/80 px-4 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="inline-flex items-center gap-1.5 font-medium"><HardDrive className="h-3.5 w-3.5" />{l('本地文库 · 报告缓存', 'Local library · Cached reports')}</span>
-        <span className="hidden text-emerald-800/80 dark:text-emerald-300 sm:inline">{l('ChatGPT 浏览器授权直连 · 报告本地保存 · Ollama 可选', 'ChatGPT browser authorization · Reports saved locally · Optional Ollama')}</span>
+        <span className="hidden text-emerald-800/80 dark:text-emerald-300 sm:inline">{l('离线英中翻译 · 报告本地保存 · 账户连接可选', 'Offline English–Chinese translation · Local reports · Optional account connection')}</span>
         <button type="button" onClick={() => void checkLocalModel()} disabled={checking} className="ml-auto inline-flex items-center gap-1 underline underline-offset-2 disabled:opacity-50">
           {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{l('检测可选本地模型', 'Check optional local AI')}
         </button>

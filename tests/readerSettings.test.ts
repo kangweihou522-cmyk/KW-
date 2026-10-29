@@ -80,7 +80,17 @@ test('web workflow migrates old settings without enabling automatic local infere
   assert.equal(migrated.autoGenerateSummary, false);
   assert.equal(migrated.autoTranslateSelection, true);
   assert.equal(migrated.selectionTranslationConsent, false);
-  assert.equal(migrated.selectionTranslationProvider, 'chatgpt');
+  assert.equal(migrated.selectionTranslationProvider, 'offline');
   assert.equal(normalizeReaderSettings({ selectionTranslationVersion: 2, autoTranslateSelection: false }).autoTranslateSelection, false);
   assert.equal(normalizeReaderSettings({ aiWorkflow: 'local', autoGenerateSummary: true }).autoGenerateSummary, true);
+});
+
+test('offline default preserves explicit channels, cloud consent and disabled automatic translation', async () => {
+  const { normalizeReaderSettings } = await loadReaderShared();
+  const migrated = normalizeReaderSettings({ selectionTranslationVersion: 2, selectionTranslationProvider: 'chatgpt', selectionTranslationConsent: false });
+  assert.equal(migrated.selectionTranslationProvider, 'offline');
+  assert.equal(migrated.selectionTranslationConsent, false);
+  assert.equal(normalizeReaderSettings({ selectionTranslationVersion: 3, selectionTranslationProvider: 'chatgpt' }).selectionTranslationProvider, 'chatgpt');
+  assert.equal(normalizeReaderSettings({ selectionTranslationVersion: 2, selectionTranslationProvider: 'deepl-free', autoTranslateSelection: false }).selectionTranslationProvider, 'deepl-free');
+  assert.equal(normalizeReaderSettings({ selectionTranslationVersion: 3, autoTranslateSelection: false }).autoTranslateSelection, false);
 });

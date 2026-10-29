@@ -862,7 +862,7 @@ export function useDocumentTranslation({
       }
 
       if (settings.selectionTranslationProvider !== 'local') {
-        if (!settings.selectionTranslationConsent) { setSelectedExcerptError('请先在此栏开启自动翻译。开启一次后不再逐次确认。'); return; }
+        if (settings.selectionTranslationProvider !== 'offline' && !settings.selectionTranslationConsent) { setSelectedExcerptError('请先在此栏开启自动翻译。开启一次后不再逐次确认。'); return; }
         const requestId = ++selectedExcerptRequestIdRef.current;
         const onlineRequestId = crypto.randomUUID(); onlineSelectionRequestRef.current = onlineRequestId;
         selectionRequestKeyRef.current = selectionRequestKey;
@@ -870,7 +870,7 @@ export function useDocumentTranslation({
         try {
           const result = await invoke<{ translation: string; cached: boolean; provider: string }>('selection_translate', {
             text: selectedExcerpt.text, source: settings.translationSourceLanguage, target: settings.translationTargetLanguage,
-            provider: settings.selectionTranslationProvider, consent: true, requestId: onlineRequestId,
+            provider: settings.selectionTranslationProvider, consent: settings.selectionTranslationConsent, requestId: onlineRequestId,
           });
           if (requestId === selectedExcerptRequestIdRef.current) {
             setSelectedExcerptTranslation(result.translation);
