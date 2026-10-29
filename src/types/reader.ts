@@ -523,6 +523,7 @@ export interface WorkspaceItem extends ZoteroLibraryItem {
 }
 
 export interface ReaderSettings {
+  aiWorkflow: 'web' | 'local';
   uiLanguage: UiLanguage;
   autoLoadSiblingJson: boolean;
   autoMineruParse: boolean;

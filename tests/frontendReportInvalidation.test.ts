@@ -23,7 +23,7 @@ test('adding saved supplements invalidates report work without re-parsing the un
     const options = { promptVersion: 'test', summaryLanguage: 'Chinese', summarySourceMode: 'mineru-markdown' as const, pdfSource: null, pdfPath: '/papers/main.pdf', currentPdfName: 'main.pdf', mineruPath: '/cache/full.md', currentJsonName: 'content.json', blockCount: 2 };
     assert.notEqual(buildPaperSummarySourceKey({ ...options, item: before }), buildPaperSummarySourceKey({ ...options, item: after }));
     assert.equal(shared.DEFAULT_SETTINGS.autoMineruParse, true);
-    assert.equal(shared.DEFAULT_SETTINGS.autoGenerateSummary, true);
+    assert.equal(shared.DEFAULT_SETTINGS.autoGenerateSummary, false);
     assert.equal(shared.DEFAULT_SETTINGS.summarySourceMode, 'mineru-markdown');
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

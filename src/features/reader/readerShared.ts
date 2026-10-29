@@ -173,10 +173,11 @@ export function buildRagSourceOptions(locale: UiLanguage): Array<{
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
+  aiWorkflow: 'web',
   uiLanguage: 'zh-CN',
   autoLoadSiblingJson: false,
   autoMineruParse: true,
-  autoGenerateSummary: true,
+  autoGenerateSummary: false,
   localRagEnabled: false,
   localRagTopK: 6,
   ragSourceMode: 'pdf-text',
@@ -753,6 +754,9 @@ export function normalizeReaderSettings(value?: Partial<ReaderSettings> | null):
 
   return {
     ...merged,
+    aiWorkflow: merged.aiWorkflow === 'local' ? 'local' : 'web',
+    autoGenerateSummary: merged.aiWorkflow === 'local' && merged.autoGenerateSummary === true,
+    autoTranslateSelection: merged.aiWorkflow === 'local' && merged.autoTranslateSelection === true,
     uiLanguage: merged.uiLanguage === 'en-US' ? 'en-US' : 'zh-CN',
     localRagEnabled: merged.localRagEnabled !== false,
     localRagTopK: clampLocalRagTopK(merged.localRagTopK),

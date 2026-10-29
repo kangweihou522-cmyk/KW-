@@ -1,3 +1,4 @@
+import { invoke } from '../../platform/electron/core';
 import {
   useCallback,
   useEffect,
@@ -2131,6 +2132,10 @@ export default function LiteratureLibraryView({
             <div className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-white/10 dark:text-[#a0a0a0]">
               {paperContextMenu.paper.title}
             </div>
+            <button type="button" className="flex w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-100" onClick={() => {
+              const paperId = paperContextMenu.paper.id; setPaperContextMenu(null);
+              void invoke('library_reveal_pdf', { paperId }).catch((error) => setError(String(error)));
+            }}>{l('打开 PDF 所在文件夹', 'Show PDF in folder')}</button>
             <button
               type="button"
               onClick={() => void handleToggleFavoriteFromContextMenu()}

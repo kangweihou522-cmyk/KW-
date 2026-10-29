@@ -134,3 +134,18 @@ test('journal metrics persist annual source and unknown fields independently wit
   assert.throws(() => normalizeMetrics([{ journal: 'Tests', year: 2024, source: 'User', impactFactor: -1 }]), /影响因子/);
   assert.deepEqual(await commands.library_get_journal_metrics({ journal: 'Unknown' }), []);
 });
+
+test('reveal PDF resolves only a registered paper attachment and rejects missing files', async (t) => {
+  const { store, appPaths } = await fixture(t);
+  const file = path.join(appPaths.dataDir, 'test 科研.pdf');
+  await writeFile(file, '%PDF-1.7\n');
+  await createReferenceExchangeCommands({ store, appPaths }).library_import_references({ format: 'ris', content: `TY  - JOUR\nTI  - Reveal test\nL1  - ${file}\nER  - \n` });
+  const paper = store.load().papers[0];
+  const revealed = [];
+  const commands = createReferenceExchangeCommands({ store, appPaths, shell: { showItemInFolder: (value) => revealed.push(value) } });
+  await commands.library_reveal_pdf({ paperId: paper.id, path: '/unregistered.pdf' });
+  assert.deepEqual(revealed, [paper.attachments[0].storedPath]);
+  await assert.rejects(commands.library_reveal_pdf({ paperId: 'missing' }), /未登记/);
+  await rm(paper.attachments[0].storedPath);
+  await assert.rejects(commands.library_reveal_pdf({ paperId: paper.id }), /不存在/);
+});

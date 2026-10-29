@@ -39,6 +39,11 @@ interface ToolbarTool {
 }
 
 interface PdfViewerToolbarProps {
+  annotationDirty: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   activeColorTool: PdfAnnotationColorTool;
   annotationColors: PdfAnnotationToolColors;
   canShowReadingHeatmapBar: boolean;
@@ -73,6 +78,7 @@ interface PdfViewerToolbarProps {
 }
 
 export function PdfViewerToolbar({
+  annotationDirty, canUndo, canRedo, onUndo, onRedo,
   activeColorTool,
   annotationColors,
   canShowReadingHeatmapBar,
@@ -151,6 +157,7 @@ export function PdfViewerToolbar({
             <button
               key={item.key}
               type="button"
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
                 if (item.key === 'highlight') {
                   onActiveColorToolChange('highlight');
@@ -184,7 +191,7 @@ export function PdfViewerToolbar({
                   : 'border-transparent bg-transparent hover:border-slate-200 hover:bg-white hover:text-slate-800 dark:hover:border-white/15 dark:hover:bg-[var(--pq-surface-2)] dark:hover:text-[var(--pq-text)]',
               )}
             >
-              {item.icon}
+              {item.icon}<span className="ml-1">{item.label}</span>
             </button>
           ))}
         </div>
@@ -233,6 +240,9 @@ export function PdfViewerToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <span role="status" className={annotationDirty ? 'text-xs text-amber-700' : 'text-xs text-slate-500'}>{annotationDirty ? '有未保存的 PDF 批注' : 'PDF 批注无待保存修改'}</span>
+          <button type="button" className="pq-button px-2 py-1 text-xs" disabled={!canUndo} onMouseDown={(event) => event.preventDefault()} onClick={onUndo}>撤销</button>
+          <button type="button" className="pq-button px-2 py-1 text-xs" disabled={!canRedo} onMouseDown={(event) => event.preventDefault()} onClick={onRedo}>重做</button>
           <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-faint)]">
             {l(`Page ${currentPage}/${Math.max(pageCount, 1)}`, `Page ${currentPage}/${Math.max(pageCount, 1)}`)}
           </div>

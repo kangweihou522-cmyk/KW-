@@ -260,6 +260,15 @@ export function ReaderPreferencesContent({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <section className="mb-4 rounded-2xl border border-slate-200 p-4">
+        <label className="block text-sm font-medium">{l('文献 AI 工作流', 'Literature AI workflow')}
+          <SettingsSelect value={settings.aiWorkflow} onChange={(event) => onSettingChange('aiWorkflow', event.target.value as 'web' | 'local')}>
+            <option value="web">{l('ChatGPT 网页回填（默认，不启动本地模型）', 'ChatGPT manual web workflow (default)')}</option>
+            <option value="local">{l('可选：本地 Ollama 模型', 'Optional: local Ollama model')}</option>
+          </SettingsSelect>
+        </label>
+        <p className="mt-2 text-xs leading-6 text-slate-500">{l('Plus 和普通账户均不附带可供工作站自动调用的免费 API。网页回答由你手动回填，本地保存后不重复消耗网页额度。', 'Plus and free accounts do not include a free API for this app. Paste web answers manually and keep reports locally.')}</p>
+      </section>
       {activeSection === 'general' ? (
         <SettingsField
           label={l('软件语言', 'Software Language')}

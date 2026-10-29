@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { ChatGptAssist } from './ChatGptAssist';
 import { getCurrentWindow } from '../../platform/electron/window';
 
 import {
@@ -159,9 +160,19 @@ function Reader({ workspaceActive = true }: ReaderProps) {
     setStatusMessage,
   });
 
+  const [reportPaper, setReportPaper] = useState<Pick<LiteraturePaper, 'id' | 'title'> | null>(null);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [preferredPreferencesSection, setPreferredPreferencesSection] = useState<PreferencesSectionKey | undefined>(undefined);
   const readerMainRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const openReport = (event: Event) => {
+      const detail = (event as CustomEvent<{ paperId: string; title: string }>).detail;
+      if (detail?.paperId) setReportPaper({ id: detail.paperId, title: detail.title });
+    };
+    window.addEventListener('paperdesk:open-chatgpt-report', openReport);
+    return () => window.removeEventListener('paperdesk:open-chatgpt-report', openReport);
+  }, []);
+
 
   const [standaloneItems, setStandaloneItems] = useState<WorkspaceItem[]>([]);
   const [nativeLibraryItems, setNativeLibraryItems] = useState<WorkspaceItem[]>([]);
@@ -817,7 +828,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
                   showReadingHeatmap={settings.showLibraryReadingHeatmap}
                   onRunMineruParse={handleNativeLibraryMineruParse}
                   onTranslatePaper={handleNativeLibraryTranslate}
-                  onGenerateSummary={handleNativeLibraryGenerateSummary}
+                  onGenerateSummary={(paper) => settings.aiWorkflow === 'web' ? setReportPaper(paper) : handleNativeLibraryGenerateSummary(paper)}
                   paperActionStates={nativePaperActionStates}
                 />
               </div>
@@ -989,6 +1000,12 @@ function Reader({ workspaceActive = true }: ReaderProps) {
           batchSummaryProgress={batchSummaryProgress}
         />
       </div>
+      {reportPaper ? <div role="dialog" aria-modal="true" aria-label="ChatGPT 文献报告" className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/40 p-6" onMouseDown={() => setReportPaper(null)}>
+        <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-5" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="mb-3 flex justify-between gap-4"><h2 className="font-semibold">{reportPaper.title}</h2><button type="button" onClick={() => setReportPaper(null)}>关闭</button></div>
+          <ChatGptAssist key={reportPaper.id} paperId={reportPaper.id} paperTitle={reportPaper.title} onOpenNote={() => setReportPaper(null)} />
+        </div>
+      </div> : null}
     </AppLocaleProvider>
   );
 }

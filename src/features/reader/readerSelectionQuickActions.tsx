@@ -364,6 +364,7 @@ export function SelectionQuickActions({
           overflowY: 'auto',
         }}
       >
+        <p className="mb-2 text-xs leading-5 text-slate-500">网页工作流：点击翻译后将所选文字发送给 MyMemory 免费渠道，单次 500 字节、有每日配额；默认自动源语言按英语处理。译文需核对，重复内容读取本地缓存。</p>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600">

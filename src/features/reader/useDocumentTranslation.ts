@@ -1,3 +1,4 @@
+import { invoke } from '../../platform/electron/core';
 import {
   useCallback,
   useEffect,
@@ -837,6 +838,28 @@ export function useDocumentTranslation({
       const selectionRequestKey = `${selectedExcerpt.source}::${selectedExcerpt.text}`;
 
       if (selectionRequestKeyRef.current === selectionRequestKey) {
+        return;
+      }
+
+      if (settings.aiWorkflow === 'web') {
+        if (!window.confirm('将本次划选文字发送给第三方 MyMemory 免费翻译？仅发送所选文字，不发送 PDF 文件。匿名服务有每日配额，所选文字可能被第三方留存，请勿提交保密材料。科研术语及公式请自行核对；不使用付费 API。重复内容优先读取本地缓存。')) return;
+        const requestId = ++selectedExcerptRequestIdRef.current;
+        selectionRequestKeyRef.current = selectionRequestKey;
+        setSelectedExcerptTranslating(true); setSelectedExcerptError('');
+        try {
+          const result = await invoke<{ translation: string; cached: boolean }>('translate_selection_free', {
+            text: selectedExcerpt.text, source: settings.translationSourceLanguage === 'auto' ? 'en' : settings.translationSourceLanguage,
+            target: settings.translationTargetLanguage, consent: true,
+          });
+          if (requestId === selectedExcerptRequestIdRef.current) {
+            setSelectedExcerptTranslation(result.translation);
+            setStatusMessage(result.cached ? '已读取本地译文缓存（MyMemory）' : 'MyMemory 免费译文已显示，请核查科研术语。');
+          }
+        } catch (error) {
+          if (requestId === selectedExcerptRequestIdRef.current) setSelectedExcerptError(error instanceof Error ? error.message : String(error));
+        } finally {
+          if (requestId === selectedExcerptRequestIdRef.current) { setSelectedExcerptTranslating(false); selectionRequestKeyRef.current = ''; }
+        }
         return;
       }
 

@@ -72,3 +72,12 @@ test("review writing runtime config is normalized independently", async () => {
     reasoningEffort: "high",
   });
 });
+
+test('web workflow migrates old settings without enabling automatic local inference', async () => {
+  const { normalizeReaderSettings } = await loadReaderShared();
+  const migrated = normalizeReaderSettings({ autoGenerateSummary: true, autoTranslateSelection: true });
+  assert.equal(migrated.aiWorkflow, 'web');
+  assert.equal(migrated.autoGenerateSummary, false);
+  assert.equal(migrated.autoTranslateSelection, false);
+  assert.equal(normalizeReaderSettings({ aiWorkflow: 'local', autoGenerateSummary: true }).autoGenerateSummary, true);
+});

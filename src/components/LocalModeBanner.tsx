@@ -29,9 +29,9 @@ export default function LocalModeBanner() {
     <div className="shrink-0 border-b border-emerald-200/70 bg-emerald-50/80 px-4 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="inline-flex items-center gap-1.5 font-medium"><HardDrive className="h-3.5 w-3.5" />{l('本地工作站 · 无需 Plus', 'Local workspace · No Plus required')}</span>
-        <span className="hidden text-emerald-800/80 dark:text-emerald-300 sm:inline">{l('本地模型处理翻译与报告，不自动调用付费 API', 'Local AI for translations and reports; no paid API fallback')}</span>
+        <span className="hidden text-emerald-800/80 dark:text-emerald-300 sm:inline">{l('ChatGPT 网页回填报告，本地保存；Ollama 可选', 'Manual ChatGPT reports saved locally; Ollama is optional')}</span>
         <button type="button" onClick={() => void checkLocalModel()} disabled={checking} className="ml-auto inline-flex items-center gap-1 underline underline-offset-2 disabled:opacity-50">
-          {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{l('检测本地模型', 'Check local AI')}
+          {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{l('检测可选本地模型', 'Check optional local AI')}
         </button>
         <button type="button" onClick={() => emitOpenPreferences('models')} className="inline-flex items-center gap-1"><Settings2 className="h-3.5 w-3.5" />{l('模型设置', 'Model settings')}</button>
       </div>

@@ -1442,11 +1442,11 @@ export function NoteEditor({
     setRevision((value) => value + 1);
   }, [color, editor, note, onUpdate, saving, setExternalUpdateState, tagText, title]);
 
-  const refreshFromExternalUpdate = useCallback(() => {
-    const incomingNote =
+  const refreshFromExternalUpdate = useCallback((requestedNote?: Note) => {
+    const incomingNote = requestedNote ?? (
       note && isNoteRecord(externalUpdateNote, note.id)
         ? externalUpdateNote
-        : externalNoteRef.current ?? note;
+        : externalNoteRef.current ?? note);
     if (!incomingNote) return;
 
     const incomingSnapshot = snapshotFromNote(incomingNote);
@@ -1476,6 +1476,17 @@ export function NoteEditor({
     onExternalUpdateApply?.(incomingNote);
     setRevision((value) => value + 1);
   }, [editor, externalUpdateNote, note, onExternalUpdateApply, setExternalUpdateState]);
+
+  useEffect(() => {
+    const openSavedReport = (event: Event) => {
+      const incoming = (event as CustomEvent<Note>).detail;
+      if (!note || incoming?.id !== note.id) return;
+      if (dirtyRef.current && !window.confirm('打开已保存报告会替换当前编辑器中未保存的修改。请确认已复制需要保留的内容。继续？')) return;
+      refreshFromExternalUpdate(incoming);
+    };
+    window.addEventListener('paperdesk:edit-saved-report', openSavedReport);
+    return () => window.removeEventListener('paperdesk:edit-saved-report', openSavedReport);
+  }, [note, refreshFromExternalUpdate]);
 
   const handleEditorKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 's') {
@@ -1678,7 +1689,7 @@ export function NoteEditor({
           </div>
           <button
             type="button"
-            onClick={refreshFromExternalUpdate}
+            onClick={() => refreshFromExternalUpdate()}
             className="pq-button h-7 shrink-0 px-2.5 text-xs"
           >
             <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} />
@@ -1716,7 +1727,7 @@ export function NoteEditor({
           {externalUpdateAvailable ? (
             <button
               type="button"
-              onClick={refreshFromExternalUpdate}
+              onClick={() => refreshFromExternalUpdate()}
               className="pq-button h-8 px-3 text-sm"
               title={TEXT.refresh}
             >

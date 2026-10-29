@@ -3924,7 +3924,7 @@ function DocumentReaderTab({
         onTranslateSelectedExcerpt={() => void handleTranslateSelectedExcerpt()}
         onClearSelectedExcerpt={handleClearSelectedExcerpt}
         onPdfAnnotationSaveSuccess={handlePdfAnnotationSaveSuccess}
-        aiConfigured={aiConfigured}
+        aiConfigured={settings.aiWorkflow === 'web' || aiConfigured}
         assistantDetached={assistantDetached}
         leftSidebarCollapsed={false}
         onToggleLeftSidebar={() => undefined}

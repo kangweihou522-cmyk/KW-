@@ -284,6 +284,45 @@ function PdfViewer({
   const [zoomLabel, setZoomLabel] = useState('100%');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [annotationDirty, setAnnotationDirty] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const savedAnnotationHashRef = useRef('');
+  const savedPdfAnnotationsRef = useRef<Array<{ id: string; pageIndex: number; text: string }>>([]);
+  const [annotationSearch, setAnnotationSearch] = useState('');
+  const [editorEntries, setEditorEntries] = useState<Array<{ id: string; pageIndex: number; text: string }>>([]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const doc = pdfDocumentRef.current;
+      if (!doc) return;
+      const hash = doc.annotationStorage.serializable.hash || '';
+      setAnnotationDirty(hash !== savedAnnotationHashRef.current);
+      const manager = annotationEditorUiManagerRef.current;
+      const entries: Array<{ id: string; pageIndex: number; text: string }> = [];
+      for (let pageIndex = 0; manager && pageIndex < doc.numPages; pageIndex++) {
+        for (const editor of manager.getEditors(pageIndex)) {
+          const data = editor.serialize?.();
+          entries.push({ id: editor.id, pageIndex, text: data?.value || editor.contentDiv?.innerText || (editor.constructor.name.includes('Highlight') ? '高亮' : '批注') });
+        }
+      }
+      const changed = doc.annotationStorage.serializable.map;
+      const liveAnnotationIds = new Set<string>();
+      for (let pageIndex = 0; manager && pageIndex < doc.numPages; pageIndex++) {
+        for (const editor of manager.getEditors(pageIndex)) if (editor.annotationElementId) liveAnnotationIds.add(editor.annotationElementId);
+      }
+      const deleted = new Set<string>();
+      if (changed) for (const value of changed.values()) if (value.deleted && value.id) deleted.add(value.id);
+      entries.unshift(...savedPdfAnnotationsRef.current.filter((entry) => !liveAnnotationIds.has(entry.id.slice(6)) && !deleted.has(entry.id.slice(6))));
+      setEditorEntries((previous) => JSON.stringify(previous) === JSON.stringify(entries) ? previous : entries);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!annotationDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [annotationDirty]);
   const [documentError, setDocumentError] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
   const [hasSelectedEditor, setHasSelectedEditor] = useState(false);
@@ -1477,6 +1516,7 @@ function PdfViewer({
       }
 
       const nextBytes = await pdfDocument.saveDocument();
+      const exportedHash = pdfDocument.annotationStorage.serializable.hash || '';
 
       if (pdfDocumentRef.current !== pdfDocument) {
         return;
@@ -1484,6 +1524,8 @@ function PdfViewer({
 
       await approveWritePath(targetPath);
       await writeLocalBinaryFile(targetPath, new Uint8Array(nextBytes));
+      savedAnnotationHashRef.current = exportedHash;
+      setAnnotationDirty((pdfDocument.annotationStorage.serializable.hash || '') !== exportedHash);
       const updatingCurrentAnnotatedFile =
         sourcePath && normalizePathForCompare(targetPath) === normalizePathForCompare(sourcePath);
       setSaveMessage(
@@ -1674,6 +1716,8 @@ function PdfViewer({
 
     let cancelled = false;
     setLoading(true);
+    savedAnnotationHashRef.current = '';
+    setAnnotationDirty(false); setCanUndo(false); setCanRedo(false); setEditorEntries([]); savedPdfAnnotationsRef.current = [];
     setDocumentError('');
 
     let eventBus: any = null;
@@ -1684,7 +1728,7 @@ function PdfViewer({
     let handlePageRendered: (() => void) | null = null;
     let handleAnnotationEditorUiManager: ((event: { uiManager?: unknown }) => void) | null = null;
     let handleEditorStatesChanged:
-      | ((event: { details?: { hasSelectedEditor?: boolean } }) => void)
+      | ((event: { details?: { hasSelectedEditor?: boolean; hasSomethingToUndo?: boolean; hasSomethingToRedo?: boolean } }) => void)
       | null = null;
 
     void import('pdfjs-dist/web/pdf_viewer.mjs')
@@ -1727,6 +1771,8 @@ function PdfViewer({
         };
 
         handleEditorStatesChanged = (event) => {
+          if (event.details?.hasSomethingToUndo !== undefined) setCanUndo(event.details.hasSomethingToUndo);
+          if (event.details?.hasSomethingToRedo !== undefined) setCanRedo(event.details.hasSomethingToRedo);
           setBooleanStateIfChanged(
             setHasSelectedEditor,
             Boolean(event.details?.hasSelectedEditor),
@@ -1782,6 +1828,14 @@ function PdfViewer({
         }
 
         pdfDocumentRef.current = pdfDocument;
+        savedPdfAnnotationsRef.current = [];
+        void Promise.all(Array.from({ length: pdfDocument.numPages }, async (_, pageIndex) => {
+          const page = await pdfDocument.getPage(pageIndex + 1);
+          const annotations = await page.getAnnotations();
+          return annotations.filter((entry: any) => ['Highlight', 'FreeText', 'Ink', 'Text', 'Underline', 'StrikeOut'].includes(entry.subtype)).map((entry: any) => ({
+            id: `saved:${entry.id}`, pageIndex, text: entry.contentsObj?.str || ({ Highlight: '高亮', FreeText: '文本批注', Ink: '手写', Text: '批注', Underline: '下划线', StrikeOut: '删除线' } as Record<string, string>)[entry.subtype],
+          }));
+        })).then((pages) => { if (pdfDocumentRef.current === pdfDocument) savedPdfAnnotationsRef.current = pages.flat(); }).catch(() => undefined);
         setPageCount(pdfDocument.numPages);
 
         if (!cancelled && pdfDocumentRef.current === pdfDocument) {
@@ -2623,6 +2677,10 @@ function PdfViewer({
       data-soft-shadow={softPageShadow ? 'true' : 'false'}
     >
       <PdfViewerToolbar
+        annotationDirty={annotationDirty}
+        canUndo={canUndo} canRedo={canRedo}
+        onUndo={() => annotationEditorUiManagerRef.current?.undo()}
+        onRedo={() => annotationEditorUiManagerRef.current?.redo()}
         activeColorTool={activeColorTool}
         annotationColors={annotationColors}
         canShowReadingHeatmapBar={canShowReadingHeatmapBar}
@@ -2655,6 +2713,26 @@ function PdfViewer({
         translationProgressTotal={translationProgressTotal}
         zoomLabel={zoomLabel}
       />
+      {editorEntries.length > 0 ? <details className="max-h-52 overflow-auto border-b px-4 py-2 text-xs">
+        <summary className="cursor-pointer">PDF 批注（{editorEntries.length}）· 搜索 / 定位 / 编辑</summary>
+        <input aria-label="搜索 PDF 批注" value={annotationSearch} onChange={(event) => setAnnotationSearch(event.target.value)} className="pq-input my-2 w-full p-2" placeholder="搜索批注文字" />
+        {editorEntries.filter((entry) => entry.text.toLowerCase().includes(annotationSearch.toLowerCase())).map((entry) => <button type="button" key={entry.id} className="block w-full truncate rounded p-2 text-left hover:bg-slate-100" onClick={() => {
+          const manager = annotationEditorUiManagerRef.current;
+          pdfViewerRef.current.scrollPageIntoView({ pageNumber: entry.pageIndex + 1 });
+          if (entry.id.startsWith('saved:')) {
+            setEditorTool('freetext'); setActiveColorTool('freetext');
+            window.setTimeout(() => {
+              const editor = [...(manager?.getEditors(entry.pageIndex) ?? [])].find((candidate: any) => candidate.annotationElementId === entry.id.slice(6));
+              if (editor) { manager.setSelected(editor); editor.div?.scrollIntoView({ block: 'center' }); editor.div?.focus(); }
+            }, 200);
+          } else {
+            const editor = manager?.getEditor(entry.id);
+            if (editor) { manager.setSelected(editor); editor.div?.scrollIntoView({ block: 'center' }); editor.div?.focus(); }
+          }
+        }}>第 {entry.pageIndex + 1} 页 · {entry.text}</button>)}
+        <p className="text-slate-500">此列表包含已保存的 PDF 批注和当前已加载页面的新批注。点击定位后可修改颜色、编辑文本或删除，再保存批注 PDF。</p>
+      </details> : null}
+
 
       <div className="relative flex min-h-0 flex-1">
         <PdfThumbnailSidebar

@@ -176,7 +176,7 @@ export function useReaderLibraryPreview({
 
   const persistNativeLibraryOverview = useCallback(
     async (item: WorkspaceItem, summary: PaperSummary, sourceKey: string) => {
-      if (item.source !== 'native-library') {
+      if (settings.aiWorkflow !== 'local' || item.source !== 'native-library') {
         return;
       }
 
@@ -207,7 +207,7 @@ export function useReaderLibraryPreview({
         }),
       );
     },
-    [],
+    [settings.aiWorkflow],
   );
 
   const handleLibraryPreviewSync = useCallback((payload: LibraryPreviewSyncPayload) => {
@@ -563,7 +563,7 @@ export function useReaderLibraryPreview({
         allowGenerate?: boolean;
       },
     ): Promise<LibraryPreviewOutcome> => {
-      const allowGenerate = options?.allowGenerate ?? true;
+      const allowGenerate = settings.aiWorkflow === 'local' && (options?.allowGenerate ?? true);
       const cachedState = libraryPreviewStates[item.workspaceId];
 
       if (!force && cachedState) {

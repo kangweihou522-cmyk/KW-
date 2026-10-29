@@ -315,6 +315,17 @@ function createReferenceExchangeCommands({ store, appPaths, shell: suppliedShell
       return { imported: rows.length, total: merged.size };
     },
 
+    async library_reveal_pdf({ paperId } = {}) {
+      const library = store.load();
+      const paper = library.papers.find((item) => item.id === paperId);
+      const attachment = paper?.attachments.find((item) => item.kind === 'pdf');
+      const filePath = attachment?.storedPath;
+      if (!filePath || !path.isAbsolute(filePath) || path.extname(filePath).toLowerCase() !== '.pdf') throw new Error('此文献未登记本地 PDF。');
+      const stat = await fsp.stat(filePath).catch(() => null);
+      if (!stat?.isFile()) throw new Error('PDF 文件不存在，请重新关联。');
+      (suppliedShell ?? require('electron').shell).showItemInFolder(filePath);
+    },
+
     async library_get_journal_metrics({ journal = '', issn = '', year = null } = {}) {
       return readMetrics().filter((row) => (!journal && !issn) || (journal && matchingTitle(row.journal) === matchingTitle(journal)) || (issn && row.issn === cleanString(issn).toUpperCase()))
         .filter((row) => year == null || row.year === Number(year))

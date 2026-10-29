@@ -539,6 +539,10 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
         />
       ) : null}
 
+      {!immersiveReading && currentDocument.source === 'native-library' ? <div className="shrink-0 border-b border-slate-200 px-4 py-1.5 text-xs">
+        <button type="button" className="pq-button px-3 py-1.5" onClick={() => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', { detail: { paperId: currentDocument.itemKey, title: currentDocument.title } }))}>{l('ChatGPT 概览 / 读书报告（本地保存）', 'ChatGPT overview / report (saved locally)')}</button>
+      </div> : null}
+
       {error ? (
         <div className="border-b border-rose-200 bg-rose-50 px-6 py-3 text-sm text-rose-600 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-400">
           {error}
