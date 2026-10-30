@@ -24,6 +24,19 @@ def token_chunks(tokens, limit=192):
     return [tokens[start:start + limit] for start in range(0, len(tokens), limit)]
 
 
+def clean_translation(value, source, terms):
+    # Unknown-token replacement can expose SentencePiece's word-boundary glyph.
+    # Apply terminology only when the corresponding English phrase is present.
+    value = value.replace("▁", " ").strip()
+    for term in terms:
+        if re.search(term["source"], source, re.IGNORECASE) and not (
+            term.get("exclude") and re.search(term["exclude"], source, re.IGNORECASE)
+        ):
+            for variant in term["variants"]:
+                value = value.replace(variant, term["target"])
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-dir", required=True)
@@ -47,6 +60,7 @@ def main():
         translator = ctranslate2.Translator(str(root / "model"), device="cpu", compute_type="int8",
                                             inter_threads=1, intra_threads=min(4, os.cpu_count() or 1))
         prefix = metadata.get("target_prefix", "")
+        terms = json.loads(Path(__file__).with_name("scientific_terms.json").read_text(encoding="utf-8"))
     except Exception as error:
         emit({"type": "startup-error", "error": f"Offline engine initialization failed: {error}"})
         return 1
@@ -76,7 +90,7 @@ def main():
                         text = tokenizer.decode(result[0].hypotheses[0])
                         if prefix and text.startswith(prefix):
                             text = text[len(prefix):]
-                        text = text.strip()
+                        text = clean_translation(text, sentence, terms)
                         output.append(text)
                         emit({"id": request_id, "type": "delta", "delta": text})
             text = "".join(output).strip()

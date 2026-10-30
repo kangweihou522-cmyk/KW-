@@ -48,9 +48,11 @@ async function prepareOfflineRuntime(platform = process.platform, arch = process
   const output = path.join(root, 'release', 'offline-translation');
   await fs.mkdir(output, { recursive: true });
   await fs.copyFile(path.join(root, 'scripts', 'translation', 'worker.py'), path.join(output, 'worker.py'));
+  await fs.copyFile(path.join(root, 'scripts', 'translation', 'scientific_terms.json'), path.join(output, 'scientific_terms.json'));
   await fs.copyFile(path.join(root, 'scripts', 'translation', 'requirements.txt'), path.join(output, 'requirements.txt'));
   await fs.copyFile(path.join(root, 'packaging', 'offline-translation-lock.json'), path.join(output, 'components.json'));
   await fs.copyFile(path.join(root, 'packaging', 'OFFLINE_TRANSLATION_NOTICE.txt'), path.join(output, 'NOTICE.txt'));
+  await fs.copyFile(path.join(root, 'packaging', 'MODEL-EN-ZH-NOTICE.txt'), path.join(output, 'MODEL-LICENSE.txt'));
   if (platform !== 'win32') {
     // Developer/Linux builds use an explicitly configured Python virtualenv.
     return output;

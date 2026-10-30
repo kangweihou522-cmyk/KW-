@@ -127,7 +127,7 @@ class OfflineTranslation {
       if (/^[\/\\]|[\\:\x00]/.test(item.name) || item.name.split('/').some(part => part === '..' || part === '.')) throw new Error('语言包登记路径无效，请重新安装语言包。');
       if (sha256(await fs.readFile(path.join(this.modelDir, item.name))) !== item.sha256) throw new Error('语言包文件损坏，请重新安装语言包。');
     }
-    const child = this.spawnProcess(this.python, ['-I', '-B', '-u', this.script, '--model-dir', this.modelDir], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = this.spawnProcess(this.python, ['-I', '-X', 'utf8', '-B', '-u', this.script, '--model-dir', this.modelDir], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     this.child = child;
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => { reject(new Error('离线翻译组件初始化超时。')); }, 30000);

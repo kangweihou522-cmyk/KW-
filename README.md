@@ -57,4 +57,4 @@ Windows 源码安装双击 `scripts/windows/Setup-PaperDesk.cmd`；手工打包 
 
 基于 [PaperQuay](https://github.com/WangQrkkk/PaperQuay) commit `1d65fdbfe0eb7ef33c57cf8b9d87b6afdb5f06bf`，AGPL-3.0-only。保留原许可证，独立品牌不代表上游官方。修改见 [UPSTREAM.md](UPSTREAM.md)，原文档在 `docs/UPSTREAM_README*.md`。
 
-验证记录：[VALIDATION.md](docs/VALIDATION.md)。Windows 包由 Linux 跨平台构建，不等同于已在你的 Windows 硬件验收；模型接口以本机模拟服务验证，真实模型质量需安装后核查。
+验证记录：[VALIDATION.md](docs/VALIDATION.md)。Windows 包由 Linux 跨平台构建，不等同于已在你的 Windows 硬件验收；离线英中引擎已用真实模型验证样例、长输入、缓存和取消；科学翻译质量及你的本机速度仍需实际阅读验收。

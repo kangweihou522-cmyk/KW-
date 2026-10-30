@@ -48,8 +48,9 @@
     "name": "translate-en_zh-1_9.argosmodel",
     "upstreamUrl": "https://argos-net.com/v1/translate-en_zh-1_9.argosmodel",
     "downloadUrl": "https://github.com/kangweihou522-cmyk/KW-/releases/download/paperdesk-v0.4.1/translate-en_zh-1_9.argosmodel",
-    "sha256": null,
-    "bytes": null,
-    "license": "To be verified from the official package before release"
+    "sha256": "433e7c4f034d87fbe2353161e05f18646d7999452f801a4e1f0378522b9850ab",
+    "bytes": 70743021,
+    "license": "CC-BY-4.0",
+    "attribution": "OPUS-MT — Building open translation services for the World; Jörg Tiedemann and Santhosh Thottingal, EAMT 2020. Argos English–Chinese 1.9 package redistributed unchanged."
   }
 }

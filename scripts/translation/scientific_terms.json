@@ -1,0 +1,14 @@
+[
+  { "source": "\\bsample size\\b", "target": "样本量", "variants": ["样本尺寸", "样品大小", "样本大小"] },
+  { "source": "\\bcontrol group\\b", "target": "对照组", "variants": ["控制组"] },
+  { "source": "\\bconfidence intervals?\\b", "target": "置信区间", "variants": ["置信间隔", "信赖间隔"] },
+  { "source": "\\b(?:randomi[sz]ed|clinical|controlled) (?:controlled )?trials?\\b", "target": "试验", "variants": ["审判"] },
+  { "source": "\\b(?:reported an?|observed an?|association (?:between|with|was|is)) association?\\b|\\bassociation (?:between|with|was|is)\\b", "exclude": "\\b(?:American|International|European|British|Chinese|National)\\b[^.!?]{0,60}\\bAssociation\\b", "target": "关联", "variants": ["协会"] },
+  { "source": "\\bauthors?\\b", "target": "作者", "variants": ["提交人"] },
+  { "source": "\\bobservational design\\b", "target": "观察性设计", "variants": ["观察设计"] },
+  { "source": "\\bfollow[- ]up\\b.*\\b(?:days?|months?|years?)\\b", "target": "随访", "variants": ["后续行动"] },
+  { "source": "\\bgene expression\\b", "target": "基因表达", "variants": ["基因表现"] },
+  { "source": "\\bcohort stud(?:y|ies)\\b", "target": "队列研究", "variants": ["队伍研究", "集团研究"] },
+  { "source": "\\bnull hypothes(?:is|es)\\b", "target": "零假设", "variants": ["空假设"] },
+  { "source": "\\bstatistical significance\\b", "target": "统计显著性", "variants": ["统计学意义", "统计意义"] }
+]

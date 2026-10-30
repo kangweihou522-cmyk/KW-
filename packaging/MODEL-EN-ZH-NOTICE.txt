@@ -1,0 +1,22 @@
+Argos English -> Chinese language package, version 1.9
+
+Original source: https://argos-net.com/v1/translate-en_zh-1_9.argosmodel
+Original package SHA256:
+433e7c4f034d87fbe2353161e05f18646d7999452f801a4e1f0378522b9850ab
+
+The model package README attributes the original OPUS model to:
+Jörg Tiedemann and Santhosh Thottingal.
+"OPUS-MT — Building open translation services for the World".
+Proceedings of the 22nd Annual Conference of the European Association for
+Machine Translation (EAMT), Lisbon, Portugal, 2020.
+
+The original OPUS model is licensed under Creative Commons Attribution 4.0
+International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+Legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PaperDesk redistributes the Argos .argosmodel archive without changing its
+contents or weights. At installation it extracts the inference components and
+retains the original README attribution; its own sentence segmentation and CPU
+inference code are separate. Model files retain their own license, not the
+PaperDesk source-code license. No endorsement by the model authors is implied.

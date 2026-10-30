@@ -99,3 +99,10 @@ test('long inputs retain every token and PDF line wraps are normalized without d
   assert.equal(result.tokens.length, 1500); assert.equal(result.tokens.at(-1), '1499'); assert(result.largest <= 192);
   assert.deepEqual(result.paragraphs, ['A randomized trial. Sample size: 20.', 'P < 0.05.']);
 });
+
+test('source-aware terminology cleanup preserves numbers, negation and unrelated legal/organization meanings', () => {
+  const script = "import runpy,json; from pathlib import Path; m=runpy.run_path('scripts/translation/worker.py'); terms=json.loads(Path('scripts/translation/scientific_terms.json').read_text()); f=m['clean_translation']; print(json.dumps([f('▁样本尺寸为20, P▁< 0.05, 不排除因果关系。','The sample size was 20; P < 0.05.',terms),f('法院审判','The court held a trial.',terms),f('美国心脏协会','The American Heart Association reported an association.',terms)],ensure_ascii=True))";
+  const results = JSON.parse(execFileSync('python3', ['-I', '-B', '-c', script], { encoding: 'utf8' }));
+  assert.equal(results[0], '样本量为20, P < 0.05, 不排除因果关系。');
+  assert.equal(results[1], '法院审判'); assert.equal(results[2], '美国心脏协会');
+});

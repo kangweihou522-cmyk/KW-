@@ -17,7 +17,7 @@ const binary = new AdmZip();
 binary.addLocalFolder(windows, `${prefix}/win-unpacked`);
 binary.addLocalFolder(path.join(repo, 'scripts', 'windows'), `${prefix}/scripts/windows`);
 for (const name of ['README.md', 'UPSTREAM.md', 'LICENSE', 'TRADEMARKS.md']) binary.addLocalFile(path.join(repo, name), prefix);
-for (const name of ['WINDOWS.md', 'LOCAL_OCR.md', 'REFERENCE_EXCHANGE.md', 'VALIDATION.md']) {
+for (const name of ['WINDOWS.md', 'LOCAL_OCR.md', 'REFERENCE_EXCHANGE.md', 'VALIDATION.md', 'OFFLINE_TRANSLATION.md', 'CHATGPT_CONNECTION.md']) {
   const file = path.join(repo, 'docs', name);
   if (fs.existsSync(file)) binary.addLocalFile(file, `${prefix}/docs`);
 }
