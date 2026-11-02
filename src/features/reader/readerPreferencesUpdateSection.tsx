@@ -35,7 +35,7 @@ function updateSupportText(status: AppUpdateStatus | null, l: ReaderPreferencesL
   }
 
   if (status.autoUpdateUnsupportedReason === 'paperdesk-local-update') {
-    return l('本地校验更新：使用桌面“更新工作站”快捷方式', 'Local verified updates: use the desktop update shortcut');
+    return l('自动更新：退出后点击桌面 PaperDesk - Update', 'Automatic updates: close the app and use PaperDesk - Update');
   }
 
   if (status.autoUpdateSupported) {
@@ -197,8 +197,8 @@ export function ReaderPreferencesUpdateSection({
     <SettingsField
       label={l('软件更新', 'Software Updates')}
       description={l(
-        'Windows 和 Linux AppImage 可自动下载并安装；macOS 当前提供更新检查和手动下载。',
-        'Windows and Linux AppImage can download and install updates automatically. macOS currently checks and opens manual downloads.',
+        'Windows：保存并退出后点击桌面 PaperDesk - Update，自动检查、下载、校验、备份和安装；无需手动选择更新文件。',
+        'Windows: save and close the app, then use PaperDesk - Update to check, download, verify, back up and install automatically. No update files need to be selected.',
       )}
     >
       <div className="space-y-4">

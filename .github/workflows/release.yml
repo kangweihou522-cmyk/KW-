@@ -18,6 +18,8 @@ jobs:
         run: node scripts/translation/quality-smoke.cjs
       - run: npm test
       - run: npm run build
+      - name: Windows PowerShell automatic updater transactions
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/windowsUpdater.integration.ps1
       - name: Actual Electron reading and editing checks
         run: node scripts/desktop-smoke.cjs
       - run: node electron/build.cjs --win --dir --x64 --publish never

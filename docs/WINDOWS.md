@@ -52,7 +52,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Setup-
 
 ## 更新与数据保留
 
-更新包由[本仓库 GitHub Releases](https://github.com/kangweihou522-cmyk/KW-/releases)提供。`Update` 快捷方式要求选择本独立版的 **PaperDesk Windows `.zip` 更新包及对应 SHA256**，不自动安装上游版本。已有安装直接校验更新，不要重复首次安装；更新后标题栏显示版本号。正确启动入口为 `D:\PaperDesk\tools\Start-PaperDesk.ps1`，实际程序为 `D:\PaperDesk\app\PaperDesk.exe`。
+保存并退出PaperDesk后，点击桌面 **PaperDesk - Update**，或运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\PaperDesk\tools\Update-PaperDesk.ps1" -Root "D:\PaperDesk"`。更新工具自动从本项目检查最新版、下载、校验SHA256、备份并安装，保留原程序用于回滚；无需手动下载更新包或填写校验值。已是最新版就结束，不降级，也不会更新成上游PaperQuay。旧版本只需先升级一次更新入口，见[自动更新说明](UPDATES.md)。启动入口仍为 `D:\PaperDesk\tools\Start-PaperDesk.ps1`。
 
 校验不符会停止。匹配后先检查 ZIP 每个条目，拒绝绝对路径、`..`、备用数据流、重复路径和符号链接，再解压到根目录下独立临时文件夹；只有恰好一个 `PaperDesk.exe` 且包含 `resources/app.asar` 和辅助脚本目录时才继续。随后备份资料，把旧程序移到 `backups/app-before-update-*`，复制新程序，保留旧版供恢复。更新失败会尝试回滚旧程序和辅助脚本，并显示备份位置；不执行 ZIP 内脚本来安装。程序目录与文献数据库分开，保留数据不代表永远无须备份。
 

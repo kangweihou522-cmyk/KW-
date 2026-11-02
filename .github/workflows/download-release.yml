@@ -38,6 +38,8 @@ jobs:
         run: npm test
       - name: Build interface for desktop checks
         run: npm run build
+      - name: Windows PowerShell automatic updater transactions
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/windowsUpdater.integration.ps1
       - name: Actual Electron reading and editing checks
         run: node scripts/desktop-smoke.cjs
       - name: Verify the real language package

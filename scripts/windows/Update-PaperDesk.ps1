@@ -1,20 +1,81 @@
 ﻿param([string]$Root, [string]$Installer, [string]$ExpectedSha256)
 . "$PSScriptRoot\Common.ps1"
+$ProgressPreference = 'SilentlyContinue'
 $Root = Get-PaperDeskRoot $Root
 Assert-PaperDeskStopped $Root
-if ([string]::IsNullOrWhiteSpace($Installer)) {
-    Write-Host 'No automatic remote release check is configured. Obtain the PaperDesk Windows ZIP and its SHA256 from the trusted release publisher.'
-    Write-Host 'Project releases: https://github.com/kangweihou522-cmyk/KW-/releases'
-    $Installer = Read-Host 'Full path to PaperDesk*.zip, or press Enter to cancel'
+$installTarget = Join-Path $Root 'app'
+if (-not (Test-Path -LiteralPath (Join-Path $installTarget 'PaperDesk.exe') -PathType Leaf)) {
+    throw '未找到已安装的 PaperDesk。请检查 -Root 指定的安装目录。'
 }
-if ([string]::IsNullOrWhiteSpace($Installer)) { Write-Host 'Update cancelled; no files changed.'; return }
+
+function Get-InstalledPaperDeskVersion([string]$Directory) {
+    $manifest = Join-Path $Directory 'app\resources\paperdesk-version.json'
+    if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { return '' }
+    $value = (Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json).version
+    if ([string]$value -notmatch '^\d+\.\d+\.\d+$') { throw '本机版本记录无效，未替换程序。' }
+    return [string]$value
+}
+
+function Get-PaperDeskRelease {
+    $api = 'https://api.github.com/repos/kangweihou522-cmyk/KW-/releases/latest'
+    $headers = @{ 'User-Agent' = 'PaperDesk-Updater'; Accept = 'application/vnd.github+json' }
+    Write-Host '正在检查 PaperDesk 官方更新...'
+    try { $release = (Invoke-WebRequest -UseBasicParsing -Uri $api -Headers $headers -TimeoutSec 60).Content | ConvertFrom-Json }
+    catch { throw '无法连接 PaperDesk 更新服务器。请检查网络，稍后再次点击桌面 PaperDesk - Update；不需要手动下载更新包。' }
+    if ($release.draft -or $release.prerelease -or [string]$release.tag_name -notmatch '^paperdesk-v(\d+\.\d+\.\d+)$') { throw '更新频道或版本信息异常，未安装其他版本。' }
+    $version = $Matches[1]
+    $name = "PaperDesk-$version-Windows.zip"
+    $packages = @($release.assets | Where-Object { $_.name -ceq $name })
+    $checksums = @($release.assets | Where-Object { $_.name -ceq 'SHA256SUMS.txt' })
+    if ($packages.Count -ne 1 -or $checksums.Count -ne 1) { throw '本次发行的更新文件尚未完整就绪，请稍后再次点击更新。' }
+    $prefix = "https://github.com/kangweihou522-cmyk/KW-/releases/download/paperdesk-v$version/"
+    if ([string]$packages[0].browser_download_url -cne ($prefix + $name) -or [string]$checksums[0].browser_download_url -cne ($prefix + 'SHA256SUMS.txt')) { throw '更新文件来源不属于 PaperDesk 官方仓库。' }
+    if ([long]$packages[0].size -le 0 -or [long]$packages[0].size -gt 2147483648) { throw '更新文件大小异常。' }
+    $digest = ''
+    if ($null -ne $packages[0].PSObject.Properties['digest'] -and $packages[0].digest) {
+        if ([string]$packages[0].digest -notmatch '^sha256:([a-fA-F0-9]{64})$') { throw '发行资产的 SHA256 格式异常。' }
+        $digest = $Matches[1]
+    }
+    return @{ Version = $version; Name = $name; Url = ($prefix + $name); SumsUrl = ($prefix + 'SHA256SUMS.txt'); Bytes = [long]$packages[0].size; Digest = $digest }
+}
+
+$downloadDirectory = $null
+$updateLock = $null
+try {
+    try { $updateLock = [IO.File]::Open((Join-Path $Root '.paperdesk-update.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
+    catch { throw '另一个更新任务正在运行，或安装目录不可写。请不要重复启动更新。' }
+    if ([string]::IsNullOrWhiteSpace($Installer)) {
+        # Windows PowerShell 5.1 must use TLS 1.2 for GitHub. Do not disable certificate verification.
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $release = Get-PaperDeskRelease
+        $installedVersion = Get-InstalledPaperDeskVersion $Root
+        if ($installedVersion -and ([version]$installedVersion -ge [version]$release.Version)) {
+            Write-Host "当前已是最新版本 $installedVersion，无需更新。"
+            return
+        }
+        Write-Host "发现 PaperDesk $($release.Version)。正在自动下载，随后校验、备份并安装..."
+        $downloadDirectory = Join-Path $Root ('.update-download-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $downloadDirectory | Out-Null
+        $sumFile = Join-Path $downloadDirectory 'SHA256SUMS.txt'
+        $Installer = Join-Path $downloadDirectory $release.Name
+        $headers = @{ 'User-Agent' = 'PaperDesk-Updater' }
+        Invoke-WebRequest -UseBasicParsing -Uri $release.SumsUrl -Headers $headers -OutFile $sumFile -TimeoutSec 60
+        if ((Get-Item -LiteralPath $sumFile).Length -gt 65536) { throw '更新校验文件过大。' }
+        $sumPattern = '^([a-fA-F0-9]{64})\s+\*?' + [regex]::Escape($release.Name) + '$'
+        $matchesForPackage = @(Get-Content -LiteralPath $sumFile -Encoding UTF8 | Where-Object { $_ -match $sumPattern })
+        if ($matchesForPackage.Count -ne 1 -or $matchesForPackage[0] -notmatch $sumPattern) { throw '更新文件的 SHA256 记录缺失或不唯一。' }
+        $ExpectedSha256 = $Matches[1]
+        if ($release.Digest -and $release.Digest -ine $ExpectedSha256) { throw 'GitHub 资产摘要和校验清单不一致，已停止更新。' }
+        Invoke-WebRequest -UseBasicParsing -Uri $release.Url -Headers $headers -OutFile $Installer -TimeoutSec 1800
+        if ((Get-Item -LiteralPath $Installer).Length -ne $release.Bytes) { throw '更新文件下载不完整，原程序保持原样。请稍后再次点击更新。' }
+    }
 $Installer = [IO.Path]::GetFullPath($Installer)
 if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) { throw 'Update ZIP not found.' }
 if ([IO.Path]::GetFileName($Installer) -notmatch '^PaperDesk.*\.zip$') { throw 'Select the PaperDesk Windows ZIP distributed for this independent edition.' }
-if ([string]::IsNullOrWhiteSpace($ExpectedSha256)) { $ExpectedSha256 = Read-Host 'Expected SHA256 from the trusted publisher (64 hex characters)' }
 if ($ExpectedSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw 'A valid expected SHA256 is required. No update was installed.' }
 $actual = (Get-FileHash -LiteralPath $Installer -Algorithm SHA256).Hash
 if ($actual -ne $ExpectedSha256) { throw 'SHA256 mismatch. No update was installed.' }
+Write-Host 'SHA256 校验已通过，正在验证并备份资料...' 
 $installTarget = Join-Path $Root 'app'
 if (-not (Test-Path -LiteralPath (Join-Path $installTarget 'PaperDesk.exe') -PathType Leaf)) { throw 'An existing PaperDesk app was not found. Use Setup-PaperDesk for first installation.' }
 
@@ -67,6 +128,9 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $candidate 'resources\app.asar') -PathType Leaf)) { throw 'The ZIP is incomplete: resources\app.asar is missing.' }
     $newTools = Join-Path $candidate 'resources\windows-tools'
     if (-not (Test-Path -LiteralPath $newTools -PathType Container)) { throw 'The ZIP is incomplete: resources\windows-tools is missing.' }
+    foreach ($helper in @('Common.ps1', 'Create-Shortcuts.ps1', 'Update-PaperDesk.ps1', 'Start-PaperDesk.ps1')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $newTools $helper) -PathType Leaf)) { throw "The update is incomplete: $helper is missing." }
+    }
 
     # Validate all archive entries and layout before touching the installed app.
     $backup = New-PaperDeskBackup $Root
@@ -106,4 +170,11 @@ try {
     throw "Update failed: $failure $details Data backup: $backup Previous app location: $oldApplication"
 } finally {
     if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+} finally {
+    if ($downloadDirectory -and (Test-Path -LiteralPath $downloadDirectory)) {
+        Remove-Item -LiteralPath $downloadDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $updateLock) { $updateLock.Dispose() }
 }

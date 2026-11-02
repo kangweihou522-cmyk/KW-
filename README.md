@@ -6,7 +6,9 @@
 
 从[本项目发行版](https://github.com/kangweihou522-cmyk/KW-/releases)下载Windows ZIP及同版SHA256。首次安装解压后运行“安装到D盘.cmd”，默认 `D:\PaperDesk`；其他位置可显式设置 `PAPERDESK_HOME`。资料位于程序目录外。
 
-已有安装：关闭PaperDesk，用原 `tools\Update-PaperDesk.ps1` 指定Windows ZIP与可信SHA256，先备份、再替换程序，保留文献、附件、笔记、批注、模型和缓存。不要重复执行首次安装脚本。启动快捷键Ctrl+Alt+L，校验更新Ctrl+Alt+U。
+已有安装：保存并退出PaperDesk，点击桌面 **PaperDesk - Update**（Ctrl+Alt+U），自动检查、下载、校验、备份并安装新版，保留文献、附件、笔记、批注、模型和缓存。已是最新版时不重复下载。PowerShell也可直接运行 `tools\Update-PaperDesk.ps1`。0.5.0及更早版本先按[更新说明](docs/UPDATES.md)升级一次更新入口。不要重复执行首次安装脚本。
+
+**更新约定：以后不再要求已安装用户手动下载ZIP、寻找文件路径或填写SHA256；统一使用桌面快捷方式或PowerShell自动更新。**
 
 详见[Windows说明](docs/WINDOWS.md)。程序无法替你直接操作个人电脑的D盘。
 

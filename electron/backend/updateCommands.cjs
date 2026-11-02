@@ -76,7 +76,7 @@ function createUpdateCommands(context) {
       canInstall: false,
       error: '',
       releaseName: 'PaperDesk 独立版本',
-      releaseNotes: '未自动查询远程发行版。请使用“检查并更新”快捷方式，选择本版本安装包及 SHA256；更新前会备份资料。不会安装上游 PaperQuay 更新。',
+      releaseNotes: '请先保存并退出，再点击桌面“PaperDesk - Update”，自动检查、下载并校验本项目的最新版本；安装前自动备份资料，无需手动下载或填写SHA256。不会安装上游 PaperQuay 更新。',
       releaseDate: '',
       releaseUrl,
       assets: [],
@@ -87,10 +87,10 @@ function createUpdateCommands(context) {
     app_update_get_status() { return buildStatus(); },
     async app_update_check() { return buildStatus(); },
     async app_update_download() {
-      throw new Error('PaperDesk 不自动下载上游更新。请使用“检查并更新”快捷方式和经 SHA256 校验的 PaperDesk 安装包。');
+      throw new Error('请保存并退出 PaperDesk，再点击桌面 PaperDesk - Update。更新工具会自动检查、下载、校验并备份安装，无需选择文件。');
     },
     app_update_install() {
-      throw new Error('请先关闭 PaperDesk，再使用“检查并更新”快捷方式安装已校验的本版本安装包。');
+      throw new Error('请先保存并退出 PaperDesk，再点击桌面 PaperDesk - Update 自动更新。');
     },
     async app_update_open_release_page() {
       const { shell } = require('electron');
