@@ -30,6 +30,22 @@ function ensureColumn(db, tableName, columnName, definition) {
 
 function createSchema(db) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS note_versions (
+      id TEXT PRIMARY KEY, note_id TEXT NOT NULL, saved_at INTEGER NOT NULL, snapshot TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS note_versions_note ON note_versions(note_id, saved_at);
+    CREATE TABLE IF NOT EXISTS paper_documents (
+      paper_id TEXT NOT NULL, kind TEXT NOT NULL, version INTEGER NOT NULL, content TEXT NOT NULL,
+      updated_at INTEGER NOT NULL, PRIMARY KEY(paper_id, kind)
+    );
+    CREATE TABLE IF NOT EXISTS paper_document_versions (
+      paper_id TEXT NOT NULL, kind TEXT NOT NULL, version INTEGER NOT NULL, content TEXT NOT NULL,
+      updated_at INTEGER NOT NULL, PRIMARY KEY(paper_id, kind, version)
+    );
+    CREATE TABLE IF NOT EXISTS paper_document_drafts (
+      paper_id TEXT NOT NULL, kind TEXT NOT NULL, source_id TEXT NOT NULL, base_version INTEGER NOT NULL,
+      content TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(paper_id, kind, source_id)
+    );
     CREATE TABLE IF NOT EXISTS notes (
       id TEXT PRIMARY KEY,
       paper_id TEXT NOT NULL,
@@ -904,6 +920,7 @@ function createNoteStore(appPaths) {
     return withTransaction(db, () => {
       const note = normalizeNoteInput(request);
       upsertNote(db, note);
+      db.prepare('INSERT INTO note_versions VALUES (?, ?, ?, ?)').run(id('revision'), note.id, now(), JSON.stringify(note));
       return getNoteById(db, note.id);
     });
   }
@@ -917,6 +934,11 @@ function createNoteStore(appPaths) {
       if (!existing) throw new Error(`Note does not exist: ${noteId}`);
 
       const note = normalizeNoteInput({ ...existing, ...(request.patch ?? {}), id: noteId }, existing);
+      if (JSON.stringify(existing.contentJson) !== JSON.stringify(note.contentJson) || existing.content !== note.content || existing.title !== note.title) {
+        // Preserve imported/pre-upgrade notes as well as the new revision, in the same transaction.
+        if (!db.prepare('SELECT id FROM note_versions WHERE note_id = ? LIMIT 1').get(note.id)) db.prepare('INSERT INTO note_versions VALUES (?, ?, ?, ?)').run(id('revision'), note.id, existing.updatedAt, JSON.stringify(existing));
+        db.prepare('INSERT INTO note_versions VALUES (?, ?, ?, ?)').run(id('revision'), note.id, now(), JSON.stringify(note));
+      }
       upsertNote(db, note);
       return getNoteById(db, note.id, { includeDeleted: true });
     });
@@ -953,6 +975,30 @@ function createNoteStore(appPaths) {
       return backlinkRowsByTargetId(db, [noteId]).get(noteId) ?? [];
     },
     listNotes,
+    listNoteVersions(noteId) { return db.prepare('SELECT id, saved_at, snapshot FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC').all(noteId).map(row => ({ id: row.id, savedAt: row.saved_at, note: JSON.parse(row.snapshot) })); },
+    getDocument(paperId, kind = 'overview') {
+      const row = db.prepare('SELECT * FROM paper_documents WHERE paper_id = ? AND kind = ?').get(paperId, kind);
+      const drafts = db.prepare('SELECT * FROM paper_document_drafts WHERE paper_id = ? AND kind = ? ORDER BY updated_at DESC').all(paperId, kind).map(row => ({ sourceId: row.source_id, baseVersion: row.base_version, content: JSON.parse(row.content), updatedAt: row.updated_at }));
+      return { paperId, kind, version: row?.version || 0, content: row ? JSON.parse(row.content) : null, updatedAt: row?.updated_at || null, drafts };
+    },
+    saveDocument({ paperId, kind = 'overview', content, expectedVersion, sourceId }) {
+      if (!paperId || typeof paperId !== 'string' || !['overview', 'glossary', 'report'].includes(kind) || JSON.stringify(content).length > 2000000) throw new Error('本地内容无效或超过大小限制。');
+      return withTransaction(db, () => {
+        const row = db.prepare('SELECT version FROM paper_documents WHERE paper_id = ? AND kind = ?').get(paperId, kind);
+        if ((row?.version || 0) !== expectedVersion) throw new Error('内容已在其他窗口修改，请先重新加载。你的草稿仍保留。');
+        const version = expectedVersion + 1; const timestamp = now(); const json = JSON.stringify(content);
+        db.prepare('INSERT INTO paper_documents VALUES (?, ?, ?, ?, ?) ON CONFLICT(paper_id, kind) DO UPDATE SET version = excluded.version, content = excluded.content, updated_at = excluded.updated_at').run(paperId, kind, version, json, timestamp);
+        db.prepare('INSERT INTO paper_document_versions VALUES (?, ?, ?, ?, ?)').run(paperId, kind, version, json, timestamp);
+        if (sourceId) db.prepare('DELETE FROM paper_document_drafts WHERE paper_id = ? AND kind = ? AND source_id = ?').run(paperId, kind, sourceId);
+        return { paperId, kind, version, content, updatedAt: timestamp };
+      });
+    },
+    saveDocumentDraft({ paperId, kind = 'overview', content, baseVersion = 0, sourceId }) {
+      if (!paperId || typeof paperId !== 'string' || !sourceId || typeof sourceId !== 'string' || !['overview', 'glossary', 'report'].includes(kind) || JSON.stringify(content).length > 2000000) throw new Error('草稿无效。');
+      db.prepare('INSERT INTO paper_document_drafts VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(paper_id, kind, source_id) DO UPDATE SET content = excluded.content, base_version = excluded.base_version, updated_at = excluded.updated_at').run(paperId, kind, sourceId, baseVersion, JSON.stringify(content), now());
+      return { saved: true };
+    },
+    documentHistory(paperId, kind = 'overview') { return db.prepare('SELECT version, content, updated_at FROM paper_document_versions WHERE paper_id = ? AND kind = ? ORDER BY version DESC').all(paperId, kind).map(row => ({ version: row.version, content: JSON.parse(row.content), updatedAt: row.updated_at })); },
     listTags,
     updateNote,
     snapshotTo(targetPath) {

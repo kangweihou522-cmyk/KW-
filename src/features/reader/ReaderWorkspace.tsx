@@ -326,6 +326,7 @@ function ReadingStage(props: ReaderWorkspaceProps & { immersiveReading: boolean 
             }}
           >
             <PdfViewer
+              toolbarHostId={`paperdesk-pdf-toolbar-${currentDocument.workspaceId}`}
               source={pdfSource}
               pdfData={pdfData}
               scrollPosition={pdfScrollPosition}
@@ -502,6 +503,7 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
     <div className="flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#f8fafc,#f1f5f9)] dark:bg-[linear-gradient(180deg,#0f1a2e,#0c1525)]">
       {!immersiveReading ? (
         <ReaderWorkspaceHeader
+          toolbarHostId={`paperdesk-pdf-toolbar-${currentDocument.workspaceId}`}
           sourceLabel={sourceLabel}
           documentTitle={currentDocument.title}
           documentCreators={currentDocument.creators}
@@ -527,7 +529,7 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
         />
       ) : null}
 
-      {!immersiveReading && currentDocument.source === 'native-library' ? <div className="shrink-0 border-b border-slate-200 px-4 py-1.5 text-xs">
+      {!immersiveReading && workspaceStage === 'overview' && currentDocument.source === 'native-library' ? <div className="shrink-0 border-b border-slate-200 px-4 py-1.5 text-xs">
         <button type="button" className="pq-button px-3 py-1.5" onClick={() => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', { detail: { paperId: currentDocument.itemKey, title: currentDocument.title } }))}>{l('ChatGPT 概览 / 读书报告（本地保存）', 'ChatGPT overview / report (saved locally)')}</button>
       </div> : null}
 
@@ -585,7 +587,7 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
         />
       ) : null}
 
-      <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 bg-white/70 px-6 py-2.5 text-xs text-slate-500 backdrop-blur-xl dark:border-white/10 dark:bg-[var(--pq-bg-primary)] dark:text-[var(--pq-text-faint)]">
+      {workspaceStage !== 'reading' ? <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 bg-white/70 px-6 py-2.5 text-xs text-slate-500 backdrop-blur-xl dark:border-white/10 dark:bg-[var(--pq-bg-primary)] dark:text-[var(--pq-text-faint)]">
         <div className="min-w-0 truncate">
           {loading || translating ? statusMessage || l('正在处理中...', 'Processing...') : statusMessage}
         </div>
@@ -594,7 +596,7 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
           <span>{l('单击预览，双击进入阅读', 'Single-click to preview, double-click to read')}</span>
           <span>Ctrl + {l('滚轮缩放', 'Scroll to zoom')}</span>
         </div>
-      </footer>
+      </footer> : null}
     </div>
   );
 }

@@ -119,6 +119,7 @@ type BBoxPageSizeSource = Pick<
 > | null;
 
 interface PdfViewerProps {
+  toolbarHostId?: string;
   source: PdfSource;
   pdfData: Uint8Array | null;
   scrollPosition?: PdfScrollPosition | null;
@@ -208,6 +209,7 @@ function setBooleanStateIfChanged(
 }
 
 function PdfViewer({
+  toolbarHostId,
   source,
   pdfData,
   scrollPosition = null,
@@ -334,9 +336,11 @@ function PdfViewer({
   const [thumbnailsCollapsed, setThumbnailsCollapsed] = useState(() =>
     loadStoredBoolean(PDF_THUMBNAILS_COLLAPSED_STORAGE_KEY, true),
   );
-  const [readingHeatmapBarVisible, setReadingHeatmapBarVisible] = useState(() =>
-    loadStoredBoolean(PDF_READING_HEATMAP_BAR_VISIBLE_STORAGE_KEY, true),
-  );
+  const [readingHeatmapBarVisible, setReadingHeatmapBarVisible] = useState(false);
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setToolbarHost(toolbarHostId ? document.getElementById(toolbarHostId) : null);
+  }, [toolbarHostId, hideToolbar]);
   const [pageThumbnails, setPageThumbnails] = useState<Record<number, string>>({});
   const [thumbnailFocusPage, setThumbnailFocusPage] = useState(1);
   const [blockContextMenu, setBlockContextMenu] = useState<{
@@ -1843,6 +1847,7 @@ function PdfViewer({
         }
 
         pdfDocumentRef.current = pdfDocument;
+        savedAnnotationHashRef.current = pdfDocument.annotationStorage.serializable.hash || '';
         savedPdfAnnotationsRef.current = [];
         void Promise.all(Array.from({ length: pdfDocument.numPages }, async (_, pageIndex) => {
           const page = await pdfDocument.getPage(pageIndex + 1);
@@ -2697,12 +2702,8 @@ function PdfViewer({
     ? l('隐藏阅读热力进度', 'Hide reading heat progress')
     : l('显示阅读热力进度', 'Show reading heat progress');
 
-  return (
-    <div
-      className="paperquay-pdf-linked flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#eff4fb,#e9f0f7)] dark:bg-[var(--pq-bg-primary)]"
-      data-soft-shadow={softPageShadow ? 'true' : 'false'}
-    >
-      <PdfViewerToolbar
+  const pdfToolbar = (
+<PdfViewerToolbar
         annotationDirty={annotationDirty}
         canUndo={canUndo} canRedo={canRedo}
         onUndo={() => annotationEditorUiManagerRef.current?.undo()}
@@ -2739,6 +2740,24 @@ function PdfViewer({
         translationProgressTotal={translationProgressTotal}
         zoomLabel={zoomLabel}
       />
+  );
+  return (
+    <div
+      className="paperquay-pdf-linked flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#eff4fb,#e9f0f7)] dark:bg-[var(--pq-bg-primary)]"
+      data-soft-shadow={softPageShadow ? 'true' : 'false'}
+    >
+      {toolbarHost ? createPortal(pdfToolbar, toolbarHost) : pdfToolbar}
+
+        {showReadingHeatmapBar ? (
+          <PdfReadingHeatmapBar
+            heatmap={localReadingHeatmap}
+            currentProgressRatio={readingProgressRatio}
+            maxBinMs={maxReadingHeatmapBinMs}
+            onSeek={scrollToReadingProgress}
+            label={l('阅读热力进度', 'Reading heat progress')}
+            totalLabel={l('累计', 'Total')}
+          />
+        ) : null}
       {editorEntries.length > 0 ? <details className="max-h-52 overflow-auto border-b px-4 py-2 text-xs">
         <summary className="cursor-pointer">PDF 批注（{editorEntries.length}）· 搜索 / 定位 / 编辑</summary>
         <input aria-label="搜索 PDF 批注" value={annotationSearch} onChange={(event) => setAnnotationSearch(event.target.value)} className="pq-input my-2 w-full p-2" placeholder="搜索批注文字" />
@@ -2787,7 +2806,7 @@ function PdfViewer({
           data-pdf-tool={editorTool}
           className={cn(
             'pdf-annotation-scroll absolute inset-0 overflow-auto px-5 pt-5',
-            showReadingHeatmapBar ? 'pb-24' : 'pb-5',
+            'pb-3',
           )}
           onMouseUp={active ? () => scheduleSelectionCommit() : undefined}
           onKeyUp={active ? () => scheduleSelectionCommit() : undefined}
@@ -2853,16 +2872,7 @@ function PdfViewer({
           })}
 
         </div>
-        {showReadingHeatmapBar ? (
-          <PdfReadingHeatmapBar
-            heatmap={localReadingHeatmap}
-            currentProgressRatio={readingProgressRatio}
-            maxBinMs={maxReadingHeatmapBinMs}
-            onSeek={scrollToReadingProgress}
-            label={l('阅读热力进度', 'Reading heat progress')}
-            totalLabel={l('累计', 'Total')}
-          />
-        ) : null}
+
         </div>
       </div>
 

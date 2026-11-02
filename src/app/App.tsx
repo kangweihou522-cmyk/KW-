@@ -383,7 +383,7 @@ function App() {
           </div>
         </header>
 
-        <LocalModeBanner />
+        {activeTab?.type !== 'reader' ? <LocalModeBanner /> : null}
 
         <TabBar
           tabs={tabs}

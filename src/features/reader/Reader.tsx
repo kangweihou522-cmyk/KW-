@@ -180,7 +180,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
   const [selectedLibraryItemId, setSelectedLibraryItemId] = useState<string | null>(null);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [readerBridges, setReaderBridges] = useState<Record<string, ReaderTabBridgeState>>({});
-  const [readerAssistantActivePanel, setReaderAssistantActivePanel] = useState<AssistantPanelKey>('chat');
+  const [readerAssistantActivePanel, setReaderAssistantActivePanel] = useState<AssistantPanelKey>('translate');
   const [readerAssistantDetached, setReaderAssistantDetached] = useState(false);
   const [readerAssistantPanelWidth, setReaderAssistantPanelWidth] = useState(() => {
     const stored = loadStoredNumber(ASSISTANT_PANEL_WIDTH_STORAGE_KEY, 408);

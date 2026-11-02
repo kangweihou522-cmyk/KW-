@@ -1,3 +1,4 @@
+import { PaperPersonalOverview } from '../../reader/PaperPersonalOverview';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
@@ -892,6 +893,7 @@ export default function LiteraturePaperDetails({
                   </div>
                 ) : null}
 
+                <PaperPersonalOverview key={selectedPaper.id} paperId={selectedPaper.id} />
                 <section className="pq-card p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-[#8d8d8d]">

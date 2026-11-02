@@ -87,7 +87,7 @@ export function PdfReadingHeatmapBar({
   };
 
   return (
-    <div className="absolute inset-x-3 bottom-3 z-20 pointer-events-none">
+    <div className="absolute right-3 top-14 z-50 w-[min(420px,calc(100%-24px))] pointer-events-none">
       <div className="rounded-xl border border-slate-200/80 bg-white/88 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-[var(--pq-sidebar)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.28)]">
         <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-500 dark:text-[var(--pq-text-faint)]">
           <span>{label}</span>

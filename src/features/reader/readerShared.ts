@@ -763,7 +763,7 @@ export function normalizeReaderSettings(value?: Partial<ReaderSettings> | null):
     selectionTranslationVersion: 3,
     selectionTranslationProvider: (value?.selectionTranslationVersion ?? 0) < 3 && merged.selectionTranslationProvider === 'chatgpt'
       ? 'offline'
-      : ['offline', 'chatgpt', 'deepl-free', 'mymemory', 'local'].includes(merged.selectionTranslationProvider) ? merged.selectionTranslationProvider : 'offline',
+      : ['offline', 'offline-quality', 'chatgpt', 'deepl-free', 'baidu', 'mymemory', 'local'].includes(merged.selectionTranslationProvider) ? merged.selectionTranslationProvider : 'offline',
     selectionTranslationConsent: merged.selectionTranslationConsent === true,
     uiLanguage: merged.uiLanguage === 'en-US' ? 'en-US' : 'zh-CN',
     localRagEnabled: merged.localRagEnabled !== false,

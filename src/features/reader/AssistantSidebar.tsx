@@ -1,3 +1,4 @@
+import { PaperPersonalOverview } from './PaperPersonalOverview';
 import { ChatGptAssist } from './ChatGptAssist';
 ﻿import {
   ExternalLink,
@@ -39,6 +40,7 @@ import { SectionCard, SelectionPanel, SummaryPanel } from './assistantSidebarPri
 export interface AssistantSidebarCoreProps {
   aiWorkflow?: 'web' | 'local';
   paperId?: string;
+  overviewStorageId?: string;
   activePanel: AssistantPanelKey;
   onActivePanelChange: (panel: AssistantPanelKey) => void;
   documentTitle?: string;
@@ -119,7 +121,7 @@ export interface AssistantSidebarChromeProps {
 export type AssistantSidebarProps = AssistantSidebarCoreProps & AssistantSidebarChromeProps;
 
 function AssistantSidebar({
-  aiWorkflow, paperId,
+  aiWorkflow, paperId, overviewStorageId,
   activePanel,
   onActivePanelChange,
   panelWidth = 408,
@@ -200,36 +202,30 @@ function AssistantSidebar({
 
   const activityItems = [
     {
-      key: 'chat' as const,
-      label: l('问答', 'Chat'),
-      icon: MessageSquare,
-      onClick: () => togglePanel('chat'),
-    },
-    {
       key: 'translate' as const,
-      label: l('翻译', 'Translate'),
+      label: l('实时翻译', 'Translate'),
       icon: Languages,
       onClick: () => togglePanel('translate'),
     },
     {
-      key: 'info' as const,
-      label: l('信息', 'Info'),
-      icon: Info,
-      onClick: () => togglePanel('info'),
-    },
-    {
       key: 'notes' as const,
-      label: l('摘录', 'Clips'),
+      label: l('笔记', 'Notes'),
       icon: FileText,
       onClick: () => togglePanel('notes'),
+    },
+    {
+      key: 'info' as const,
+      label: l('文献概览', 'Overview'),
+      icon: Info,
+      onClick: () => togglePanel('info'),
     },
   ];
 
   return (
-    <div className="pq-saas-scope pq-reader-assistant paperquay-assistant flex h-full min-h-0 overflow-hidden">
+    <div className="pq-saas-scope pq-reader-assistant paperquay-assistant flex h-full min-h-0 flex-col-reverse overflow-hidden" style={{ width: activePanel ? panelWidth : 48 }}>
       <div
         className={cn(
-          'pq-reader-pane overflow-hidden border-l transition-[width] duration-300 ease-in-out',
+          'pq-reader-pane min-h-0 flex-1 overflow-hidden border-l transition-[width] duration-300 ease-in-out',
           !activePanel && 'border-transparent',
         )}
         style={{ width: activePanel ? panelWidth : 0 }}
@@ -291,19 +287,7 @@ function AssistantSidebar({
             ) : null}
 
             {activePanel === 'info' ? (
-              <InfoDrawerContent
-                documentTitle={documentTitle}
-                documentMeta={documentMeta}
-                documentSource={documentSource}
-                documentPdfName={documentPdfName}
-                documentJsonName={documentJsonName}
-                blockCount={blockCount}
-                translatedCount={translatedCount}
-                statusMessage={statusMessage}
-                hasBlocks={hasBlocks}
-                aiConfigured={aiConfigured}
-                onCollapse={() => onActivePanelChange(null)}
-              />
+              <div className="h-full overflow-y-auto p-3"><PaperPersonalOverview paperId={overviewStorageId || paperId || documentPdfName || documentTitle || 'standalone'} editable /></div>
             ) : null}
 
             <div className="h-full min-h-0" hidden={activePanel !== 'notes'}>
@@ -336,8 +320,8 @@ function AssistantSidebar({
         </div>
       </div>
 
-      <div className="pq-reader-pane z-10 flex h-full w-12 flex-col items-center rounded-none border-l py-4 shadow-[-8px_0_26px_rgba(31,41,55,0.06)]">
-        <div className="flex flex-col items-center gap-1.5">
+      <div className={cn("pq-reader-pane z-10 flex shrink-0 items-center border-b border-l px-1 py-2", !activePanel && "h-full flex-col")}>
+        <div className={cn("flex items-center gap-1.5", !activePanel && "flex-col")}>
           {activityItems.map((item) => {
             const active = activePanel === item.key;
             const Icon = item.icon;
@@ -347,8 +331,10 @@ function AssistantSidebar({
                 type="button"
                 onClick={item.onClick}
                 title={item.label}
+                aria-label={item.label}
+                aria-pressed={active}
                 className={cn(
-                  'relative flex h-10 w-10 items-center justify-center rounded-xl transition',
+                  'relative flex h-9 items-center justify-center gap-1 rounded-xl px-2 text-xs transition',
                   active
                     ? 'bg-[var(--pq-accent-soft)] text-[var(--pq-accent)] ring-1 ring-[var(--pq-accent-ring)]'
                     : 'text-[var(--pq-text-muted)] hover:bg-white/70 hover:text-[var(--pq-text)]',
@@ -357,13 +343,13 @@ function AssistantSidebar({
                 {active ? (
                   <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-[var(--pq-accent)]" />
                 ) : null}
-                <Icon className="h-4.5 w-4.5" strokeWidth={1.9} />
+                <Icon className="h-4 w-4" strokeWidth={1.9} />{activePanel ? <span>{item.label}</span> : null}
               </button>
             );
           })}
         </div>
 
-        <div className="mt-auto flex flex-col items-center gap-1.5">
+        <div className="mt-auto flex items-center gap-1.5">
           {onDetach && activePanel === 'chat' ? (
             <button
               type="button"

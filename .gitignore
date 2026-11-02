@@ -180,3 +180,6 @@ AGENTS.md
 # Python local OCR cache
 __pycache__/
 *.pyc
+
+# Intermediate task artifacts
+work/

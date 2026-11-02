@@ -1,6 +1,10 @@
-import type { Dispatch, SetStateAction, ReactNode } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Activity,
+  MoreHorizontal,
+  Undo2,
+  Redo2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -112,240 +116,43 @@ export function PdfViewerToolbar({
   zoomLabel,
 }: PdfViewerToolbarProps) {
   const activeToolColor = annotationColors[activeColorTool];
-  const translationProgressRatio = getPercentProgress(
-    translationProgressCompleted,
-    translationProgressTotal,
-  );
-  const toolbarTools: ToolbarTool[] = [
-    {
-      key: 'select',
-      label: l('选择联动', 'Select & Link'),
-      icon: <MousePointer2 className="h-4 w-4" strokeWidth={1.8} />,
-    },
-    {
-      key: 'highlight',
-      label: l('高亮', 'Highlight'),
-      icon: <Highlighter className="h-4 w-4" strokeWidth={1.8} />,
-    },
-    {
-      key: 'freetext',
-      label: l('文本', 'Text'),
-      icon: <Type className="h-4 w-4" strokeWidth={1.8} />,
-    },
-    {
-      key: 'ink',
-      label: l('手写', 'Ink'),
-      icon: <PenTool className="h-4 w-4" strokeWidth={1.8} />,
-    },
-  ];
-
-  const getToolLabel = (key: ToolbarToolKey) => {
-    if (key === 'select') return l('选择联动', 'Select & Link');
-    if (key === 'highlight') return l('高亮', 'Highlight');
-    if (key === 'freetext') return l('文本批注', 'Text Annotation');
-    return l('手写批注', 'Ink Annotation');
-  };
-
-  return (
-    <div className={cn(
-      'border-b border-slate-200/80 bg-white/78 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[var(--pq-bg-primary)]',
-      hideToolbar && 'hidden',
-    )}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-[var(--pq-surface-1)]">
-          {toolbarTools.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                if (item.key === 'highlight') {
-                  onActiveColorToolChange('highlight');
-                  if (hasLiveTextSelection && editorTool === 'none') void onCreateHighlight();
-                  else onEditorToolChange((current) => current === 'highlight' ? 'none' : 'highlight');
-                  return;
-                }
-
-                if (item.key === 'select') {
-                  onEditorToolChange('none');
-                  return;
-                }
-
-                const editableTool = item.key as EditableToolbarToolKey;
-                onActiveColorToolChange(editableTool);
-                onEditorToolChange((current) => (current === editableTool ? 'none' : editableTool));
-              }}
-              disabled={loading || saving}
-              aria-pressed={item.key === 'select' ? editorTool === 'none' : editorTool === item.key}
-              title={getToolLabel(item.key)}
-              aria-label={getToolLabel(item.key)}
-              className={cn(
-                'inline-flex h-10 min-w-16 gap-1 px-2 items-center justify-center rounded-xl border text-slate-500 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55',
-                ((item.key === 'select' && editorTool === 'none') ||
-                  (item.key !== 'select' &&
-                    editorTool === item.key))
-                  ? 'border-indigo-200 bg-white text-indigo-600 shadow-[0_8px_18px_rgba(79,70,229,0.12)] dark:border-indigo-400/30 dark:bg-[var(--pq-surface-2)] dark:text-indigo-400 dark:shadow-[0_8px_18px_rgba(79,70,229,0.18)]'
-                  : 'border-transparent bg-transparent hover:border-slate-200 hover:bg-white hover:text-slate-800 dark:hover:border-white/15 dark:hover:bg-[var(--pq-surface-2)] dark:hover:text-[var(--pq-text)]',
-              )}
-            >
-              {item.icon}<span className="ml-1">{item.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/86 px-2.5 py-2 dark:border-white/10 dark:bg-[var(--pq-surface-1)]">
-          <div className="flex items-center gap-1.5">
-            {PDF_ANNOTATION_COLOR_PRESETS.map((preset) => {
-              const colorValue = getPdfAnnotationColorValue(preset, activeColorTool);
-              const active = colorValue.toLowerCase() === activeToolColor.toLowerCase();
-              const colorLabel = getPdfAnnotationColorLabel(preset.id, l);
-
-              return (
-                <button
-                  key={`${activeColorTool}-${preset.id}`}
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => onAnnotationToolColorChange(activeColorTool, colorValue)}
-                  className={cn(
-                    'h-6 w-6 rounded-full border-2 transition-all duration-200',
-                    active
-                      ? 'scale-110 border-slate-900 shadow-[0_0_0_2px_rgba(255,255,255,0.9)] dark:border-[var(--pq-text)] dark:shadow-[0_0_0_2px_rgba(255,255,255,0.12)]'
-                      : 'border-white hover:scale-105 hover:border-slate-300 dark:border-[var(--pq-border)] dark:hover:border-[var(--pq-border-strong)]',
-                  )}
-                  style={{ backgroundColor: colorValue }}
-                  title={colorLabel}
-                  aria-label={colorLabel}
-                />
-              );
-            })}
-          </div>
-          <label
-            className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 transition hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:border-white/15 dark:hover:bg-[var(--pq-surface-2)]"
-            title={l('Custom color', 'Custom color')}
-          >
-            <input
-              type="color"
-              value={activeToolColor}
-              onChange={(event) => onAnnotationToolColorChange(activeColorTool, event.target.value)}
-              className="sr-only"
-            />
-            <span
-              className="h-4 w-4 rounded-full border border-white shadow-sm"
-              style={{ backgroundColor: activeToolColor }}
-            />
-            {l('Custom', 'Custom')}
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span role="status" className={annotationDirty ? 'text-xs text-amber-700' : 'text-xs text-slate-500'}>{annotationDirty ? '有未保存的 PDF 批注' : 'PDF 批注无待保存修改'}</span>
-          <button type="button" className="pq-button px-2 py-1 text-xs" disabled={!canUndo} onMouseDown={(event) => event.preventDefault()} onClick={onUndo}>撤销</button>
-          <button type="button" className="pq-button px-2 py-1 text-xs" disabled={!canRedo} onMouseDown={(event) => event.preventDefault()} onClick={onRedo}>重做</button>
-          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-faint)]">
-            {l(`Page ${currentPage}/${Math.max(pageCount, 1)}`, `Page ${currentPage}/${Math.max(pageCount, 1)}`)}
-          </div>
-          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-faint)]">
-            {zoomLabel}
-          </div>
-          <button
-            type="button"
-            onClick={() => onScrollToPage(Math.max(0, currentPage - 2))}
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all duration-200 hover:bg-slate-50 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:bg-[var(--pq-surface-2)]"
-            title={l('Previous page', 'Previous page')}
-          >
-            <ChevronLeft className="h-4 w-4" strokeWidth={1.9} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onScrollToPage(Math.min(Math.max(pageCount - 1, 0), currentPage))}
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all duration-200 hover:bg-slate-50 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:bg-[var(--pq-surface-2)]"
-            title={l('Next page', 'Next page')}
-          >
-            <ChevronRight className="h-4 w-4" strokeWidth={1.9} />
-          </button>
-          <button
-            type="button"
-            onClick={onZoomOut}
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all duration-200 hover:bg-slate-50 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:bg-[var(--pq-surface-2)]"
-            title={l('缩小', 'Zoom out')}
-          >
-            <ZoomOut className="h-4 w-4" strokeWidth={1.8} />
-          </button>
-          <button
-            type="button"
-            onClick={onZoomIn}
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all duration-200 hover:bg-slate-50 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:bg-[var(--pq-surface-2)]"
-            title={l('放大', 'Zoom in')}
-          >
-            <ZoomIn className="h-4 w-4" strokeWidth={1.8} />
-          </button>
-          {enableReadingHeatmap ? (
-            <button
-              type="button"
-              onClick={onToggleReadingHeatmapBar}
-              disabled={!canShowReadingHeatmapBar}
-              className={cn(
-                'inline-flex items-center rounded-xl border p-2 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55',
-                showReadingHeatmapBar
-                  ? 'border-[var(--pq-accent-border)] bg-[var(--pq-accent-bg)] text-[var(--pq-accent)] shadow-[0_8px_18px_var(--pq-accent-shadow)] dark:border-[var(--pq-accent-border)] dark:bg-[var(--pq-accent-bg)] dark:text-[var(--pq-accent-text)]'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:bg-[var(--pq-surface-2)]',
-              )}
-              title={readingHeatmapToggleLabel}
-              aria-label={readingHeatmapToggleLabel}
-            >
-              <Activity className="h-4 w-4" strokeWidth={1.8} />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onDeleteSelected}
-            disabled={!hasSelectedEditor || loading || saving}
-            className={cn(
-              'inline-flex items-center rounded-xl border px-3 py-2 text-sm font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60',
-              hasSelectedEditor && !loading && !saving
-                ? 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-400 dark:hover:bg-rose-400/20'
-                : 'border-slate-200 bg-white text-slate-400 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-faint)]',
-            )}
-            title={l('删除当前选中的 PDF 批注', 'Delete the selected PDF annotation')}
-          >
-            <Trash2 className="mr-2 h-4 w-4" strokeWidth={1.8} />
-            {l('Delete Selected', 'Delete Selected')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void onSave()}
-            disabled={saving || loading}
-            className="inline-flex items-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[var(--pq-accent)] dark:text-[var(--pq-text)] dark:hover:bg-[var(--pq-accent-hover)]"
-          >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" strokeWidth={1.8} />
-            ) : (
-              <Download className="mr-2 h-4 w-4" strokeWidth={1.8} />
-            )}
-            {saving ? l('正在保存...', 'Saving...') : l('保存批注 PDF', 'Save Annotated PDF')}
-          </button>
-        </div>
-      </div>
-
-      <p className="mt-2 text-xs text-slate-500">{editorTool === 'highlight' ? l('高亮模式：连续划选即可标记；点击颜色切换。H / Esc 退出，Ctrl+S 保存。', 'Highlight mode: drag repeatedly to mark text; choose a color. H / Esc exits, Ctrl+S saves.') : l('H 切换高亮；T 文本批注；Esc 返回选择；Ctrl+S 保存，原 PDF 保留。', 'H highlights; T adds text; Esc selects; Ctrl+S saves a separate annotated PDF.')}</p>
-      {saveMessage ? <div className="mt-2 text-xs text-emerald-600">{saveMessage}</div> : null}
-      {documentError ? <div className="mt-2 text-xs text-rose-600">{documentError}</div> : null}
-      {translating && translationProgressTotal > 0 ? (
-        <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/80 px-3 py-2.5 dark:border-indigo-400/20 dark:bg-indigo-400/10">
-          <div className="flex items-center justify-between gap-3 text-xs font-medium text-indigo-700 dark:text-indigo-400">
-            <span>{l('MinerU block translation progress', 'MinerU block translation progress')}</span>
-            <span>
-              {translationProgressCompleted}/{translationProgressTotal}
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-indigo-100 dark:bg-indigo-500/20">
-            <div
-              className="h-full rounded-full bg-indigo-500 transition-all duration-300 dark:bg-indigo-400"
-              style={{ width: `${translationProgressRatio}%` }}
-            />
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [pageInput, setPageInput] = useState(String(currentPage));
+  useEffect(() => setPageInput(String(currentPage)), [currentPage]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: PointerEvent) => { if (event.target instanceof Node && !anchorRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('pointerdown', close); window.addEventListener('keydown', escape);
+    const reposition = () => setMenuOpen(false); window.addEventListener('resize', reposition);
+    return () => { window.removeEventListener('pointerdown', close); window.removeEventListener('keydown', escape); window.removeEventListener('resize', reposition); };
+  }, [menuOpen]);
+  const button = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800';
+  function toggleHighlight() {
+    onActiveColorToolChange('highlight');
+    if (hasLiveTextSelection && editorTool === 'none') void onCreateHighlight();
+    else onEditorToolChange(current => current === 'highlight' ? 'none' : 'highlight');
+  }
+  const menu = menuOpen ? <div ref={menuRef} role="dialog" aria-label={l('PDF批注工具', 'PDF annotation tools')} className="fixed z-[12000] w-72 space-y-3 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xl dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" style={position}>
+    <div className="flex flex-wrap gap-2">{[{key:'none' as const,label:l('选择','Select'),icon:MousePointer2},{key:'freetext' as const,label:l('文本批注','Text'),icon:Type},{key:'ink' as const,label:l('手写批注','Ink'),icon:PenTool}].map(tool=><button key={tool.key} type="button" className="pq-button flex items-center gap-1 p-2" disabled={loading || saving} aria-pressed={editorTool===tool.key} onClick={()=>{onEditorToolChange(tool.key);if(tool.key!=='none')onActiveColorToolChange(tool.key);}}><tool.icon className="h-4 w-4"/>{tool.label}</button>)}</div>
+    <div className="flex items-center gap-2">{PDF_ANNOTATION_COLOR_PRESETS.map(preset=>{const value=getPdfAnnotationColorValue(preset,activeColorTool);return <button key={preset.id} type="button" className={cn('h-6 w-6 rounded-full border-2',value.toLowerCase()===activeToolColor.toLowerCase()?'border-slate-900 ring-2 ring-indigo-300':'border-white')} style={{backgroundColor:value}} title={getPdfAnnotationColorLabel(preset.id,l)} aria-label={getPdfAnnotationColorLabel(preset.id,l)} onMouseDown={e=>e.preventDefault()} onClick={()=>onAnnotationToolColorChange(activeColorTool,value)}/>;})}<input aria-label={l('自定义批注颜色','Custom annotation color')} type="color" className="h-7 w-8" value={activeToolColor} onChange={e=>onAnnotationToolColorChange(activeColorTool,e.target.value)}/></div>
+    <div className="flex gap-2"><button type="button" className="pq-button flex items-center gap-1 p-2" disabled={!canUndo} onClick={onUndo}><Undo2 className="h-4 w-4"/>撤销</button><button type="button" className="pq-button flex items-center gap-1 p-2" disabled={!canRedo} onClick={onRedo}><Redo2 className="h-4 w-4"/>重做</button><button type="button" className="pq-button flex items-center gap-1 p-2 text-rose-600" disabled={!hasSelectedEditor || loading || saving} onClick={onDeleteSelected}><Trash2 className="h-4 w-4"/>删除选中</button></div>
+    <p>{annotationDirty ? '有未保存的 PDF 批注' : 'PDF 批注无待保存修改'}</p><p className="leading-6 text-slate-500">H 连续高亮 · T 文本批注 · Esc 选择 · Ctrl+S 保存。原PDF始终保留。</p>
+    {saveMessage && <p role="status" className="break-words text-emerald-600">{saveMessage}</p>}{documentError && <p role="alert" className="break-words text-rose-600">{documentError}</p>}
+    {translating && <p>全文翻译：{translationProgressCompleted}/{translationProgressTotal}</p>}
+  </div> : null;
+  return <div className={cn('flex shrink-0 items-center gap-0.5',hideToolbar && 'hidden')}>
+    <button type="button" className={button} disabled={loading || saving} aria-pressed={editorTool==='highlight'} aria-label={l('高亮','Highlight')} title={l('连续高亮（H）','Continuous highlight (H)')} onMouseDown={e=>e.preventDefault()} onClick={toggleHighlight}><Highlighter className={cn('h-4 w-4',editorTool==='highlight'&&'text-indigo-600')} /></button>
+    <button type="button" className={button} disabled={currentPage<=1 || loading} title={l('上一页','Previous page')} aria-label={l('上一页','Previous page')} onClick={()=>onScrollToPage(Math.max(0,currentPage-2))}><ChevronLeft className="h-4 w-4"/></button>
+    <label className="flex items-center gap-1 whitespace-nowrap text-xs text-slate-500"><input aria-label={l('PDF页码','PDF page')} className="w-9 rounded border bg-transparent px-1 py-1 text-center" inputMode="numeric" value={pageInput} onChange={e=>setPageInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){const value=Number(pageInput);if(Number.isInteger(value)&&value>=1&&value<=pageCount)onScrollToPage(value-1);else setPageInput(String(currentPage));}}}/><span>/{Math.max(1,pageCount)}</span></label>
+    <button type="button" className={button} disabled={currentPage>=pageCount || loading} title={l('下一页','Next page')} aria-label={l('下一页','Next page')} onClick={()=>onScrollToPage(Math.min(pageCount-1,currentPage))}><ChevronRight className="h-4 w-4"/></button>
+    <button type="button" className={button} title={l('缩小','Zoom out')} aria-label={l('缩小','Zoom out')} onClick={onZoomOut}><ZoomOut className="h-4 w-4"/></button><span className="hidden text-xs text-slate-500 2xl:inline">{zoomLabel}</span><button type="button" className={button} title={l('放大','Zoom in')} aria-label={l('放大','Zoom in')} onClick={onZoomIn}><ZoomIn className="h-4 w-4"/></button>
+    {enableReadingHeatmap && <button type="button" className={cn(button,showReadingHeatmapBar&&'bg-indigo-50 text-indigo-600')} disabled={!canShowReadingHeatmapBar} aria-expanded={showReadingHeatmapBar} title={readingHeatmapToggleLabel} aria-label={readingHeatmapToggleLabel} onClick={onToggleReadingHeatmapBar}><Activity className="h-4 w-4"/></button>}
+    <button type="button" className={cn(button,annotationDirty&&'text-amber-600')} disabled={saving||loading} title={saveMessage || l('保存批注PDF（Ctrl+S）','Save annotated PDF (Ctrl+S)')} aria-label={l('保存批注PDF','Save annotated PDF')} onClick={()=>void onSave()}>{saving?<Loader2 className="h-4 w-4 animate-spin"/>:<Download className="h-4 w-4"/>}</button>
+    <button type="button" ref={anchorRef} className={cn(button,documentError&&'text-rose-600')} title={l('更多PDF工具与保存状态','More PDF tools and save status')} aria-label={l('更多PDF工具','More PDF tools')} aria-expanded={menuOpen} onClick={()=>{const rect=anchorRef.current?.getBoundingClientRect();if(rect)setPosition({top:rect.bottom+6,left:Math.max(8,Math.min(window.innerWidth-296,rect.right-288))});setMenuOpen(!menuOpen);}}><MoreHorizontal className="h-4 w-4"/></button>
+    {!hideToolbar && menu && createPortal(menu,document.body)}
+  </div>;
 }

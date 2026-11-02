@@ -383,7 +383,7 @@ function DocumentReaderTab({
   const [leftPaneWidthRatio, setLeftPaneWidthRatio] = useState(loadPaneRatio);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [workspaceStage, setWorkspaceStage] = useState<WorkspaceStage>('reading');
-  const [readingViewMode, setReadingViewMode] = useState<ReaderViewMode>('dual-pane');
+  const [readingViewMode, setReadingViewMode] = useState<ReaderViewMode>('pdf-only');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState(() => l('就绪', 'Ready'));
@@ -3214,7 +3214,7 @@ function DocumentReaderTab({
     pendingHistoryActiveBlockIdRef.current = history?.lastActiveBlockId ?? null;
 
     if (!history) {
-      setReadingViewMode('dual-pane');
+      setReadingViewMode('pdf-only');
       return;
     }
 
@@ -3670,7 +3670,7 @@ function DocumentReaderTab({
   useEffect(() => {
     if (!selectedExcerpt || !settings.enableSelectionTranslation) return;
     setAssistantActivePanel('translate');
-    if (selectedExcerpt.origin === 'pdf-block' || !settings.autoTranslateSelection || settings.selectionTranslationProvider !== 'offline' && !settings.selectionTranslationConsent) return;
+    if (selectedExcerpt.origin === 'pdf-block' || !settings.autoTranslateSelection || !['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) && !settings.selectionTranslationConsent) return;
     const key = `${selectedExcerpt.createdAt}:${selectedExcerpt.source}:${selectedExcerpt.text}:${settings.selectionTranslationProvider}`;
     if (autoTranslatedSelectionKeyRef.current === key) return;
     const timer = window.setTimeout(() => {
@@ -3682,7 +3682,7 @@ function DocumentReaderTab({
 
   useEffect(() => {
     const ready = () => {
-      if (settings.selectionTranslationProvider !== 'offline' || !settings.autoTranslateSelection || !selectedExcerpt || selectedExcerpt.origin === 'pdf-block') return;
+      if (!['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) || !settings.autoTranslateSelection || !selectedExcerpt || selectedExcerpt.origin === 'pdf-block') return;
       setAssistantActivePanel('translate');
       void handleTranslateSelectedExcerpt(false);
     };

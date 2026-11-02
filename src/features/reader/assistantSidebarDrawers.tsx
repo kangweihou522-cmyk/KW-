@@ -127,7 +127,6 @@ function TranslateDrawerContent({
 }: TranslateDrawerContentProps) {
   return (
     <div className="h-full overflow-y-auto px-4 py-4">
-      <SelectionTranslationControls />
       <SelectionPanel
         selectedExcerpt={selectedExcerpt}
         selectedExcerptTranslation={selectedExcerptTranslation}
@@ -139,6 +138,7 @@ function TranslateDrawerContent({
         onClearSelectedExcerpt={onClearSelectedExcerpt}
         onCollapse={onCollapse}
       />
+      <div className="mt-4"><SelectionTranslationControls /></div>
     </div>
   );
 }

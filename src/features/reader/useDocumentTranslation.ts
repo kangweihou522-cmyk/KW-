@@ -862,7 +862,7 @@ export function useDocumentTranslation({
       }
 
       if (settings.selectionTranslationProvider !== 'local') {
-        if (settings.selectionTranslationProvider !== 'offline' && !settings.selectionTranslationConsent) { setSelectedExcerptError('请先在此栏开启自动翻译。开启一次后不再逐次确认。'); return; }
+        if (!['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) && !settings.selectionTranslationConsent) { setSelectedExcerptError('请先在此栏开启自动翻译。开启一次后不再逐次确认。'); return; }
         const requestId = ++selectedExcerptRequestIdRef.current;
         const onlineRequestId = crypto.randomUUID(); onlineSelectionRequestRef.current = onlineRequestId;
         selectionRequestKeyRef.current = selectionRequestKey;

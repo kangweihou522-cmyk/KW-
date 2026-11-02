@@ -524,7 +524,7 @@ export interface WorkspaceItem extends ZoteroLibraryItem {
 
 export interface ReaderSettings {
   aiWorkflow: 'web' | 'local';
-  selectionTranslationProvider: 'offline' | 'chatgpt' | 'deepl-free' | 'mymemory' | 'local';
+  selectionTranslationProvider: 'offline' | 'offline-quality' | 'chatgpt' | 'deepl-free' | 'baidu' | 'mymemory' | 'local';
   selectionTranslationConsent: boolean;
   selectionTranslationVersion: number;
   uiLanguage: UiLanguage;

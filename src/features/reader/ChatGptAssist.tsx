@@ -1,123 +1,79 @@
-import { ChatGptConnection } from './ChatGptConnection';
-import { invoke } from '../../platform/electron/core';
-import { emitNoteChanged } from '../../app/appEvents';
 import { useEffect, useState } from 'react';
-import { Copy, Download, ExternalLink, Save } from 'lucide-react';
-import { useLocaleText } from '../../i18n/uiLanguage';
-import { openExternalUrl } from '../../services/desktop';
+import ReactMarkdown from 'react-markdown';
+import { invoke } from '../../platform/electron/core';
+import { listen } from '../../platform/electron/event';
+import { emitNoteChanged } from '../../app/appEvents';
+import { ChatGptConnection } from './ChatGptConnection';
 import { getChatGptReport, saveChatGptReport, syncChatGptOverview } from '../../services/readingWorkflow';
 import { useChatGptDraft, writeChatGptDraft } from './chatGptReportCache';
 import type { Note } from '../../types/notes';
-import { useTabsStore } from '../../stores/useTabsStore';
 import { buildChatGptReadingPrompt } from './readingReport';
-
+import { openExternalUrl } from '../../services/desktop';
+import { useTabsStore } from '../../stores/useTabsStore';
+const body = (note: Note) => (note.contentText || note.content).replace(/^来源：[^\n]*\n\n/, '');
+interface FreeStatus { configured: boolean; model: string; fallbackEnabled: boolean; }
+interface Version { id: string; savedAt: number; note: Note; }
 export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperId?: string; paperTitle?: string; onOpenNote?: () => void }) {
-  const l = useLocaleText();
-  const reply = useChatGptDraft(paperId);
-  const [report, setReport] = useState<Note | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const draft = useChatGptDraft(paperId);
+  const [report, setReport] = useState<Note | null>(null); const [loaded, setLoaded] = useState(false);
+  const [status, setStatus] = useState(''); const [error, setError] = useState(''); const [manualStatus, setManualStatus] = useState('');
+  const [busy, setBusy] = useState(false); const [editing, setEditing] = useState(false);
+  const [provider, setProvider] = useState('chatgpt'); const [key, setKey] = useState('');
+  const [free, setFree] = useState<FreeStatus | null>(null); const [models, setModels] = useState<{id: string; label: string}[]>([]);
+  const [versions, setVersions] = useState<Version[]>([]); const [preview, setPreview] = useState<Version | null>(null);
+  const [question, setQuestion] = useState(''); const [answer, setAnswer] = useState('');
   useEffect(() => {
-    let active = true; setLoaded(false); setReport(null);
-    if (!paperId) return;
-    void getChatGptReport(paperId).then((note) => { if (active) { setReport(note); setLoaded(true); } }).catch((error) => { if (active) { setFailed(true); setStatus(String(error)); } });
+    let active = true; setLoaded(false); setReport(null); setStatus(''); setError(''); setVersions([]); setPreview(null); setEditing(false);
+    void getChatGptReport(paperId).then(note => { if (active) { setReport(note); setLoaded(true); } }).catch(e => { if (active) setError(String(e)); });
+    void invoke<FreeStatus>('report_provider_status').then(result => { if (active) setFree(result); }).catch(e => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, [paperId]);
-  const [status, setStatus] = useState('');
-  const [failed, setFailed] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [asking, setAsking] = useState(false);
-
-  async function run(action: () => Promise<void>) {
-    setFailed(false);
-    setStatus('');
-    try { await action(); } catch (error) {
-      setFailed(true);
-      setStatus(error instanceof Error ? error.message : String(error));
-    }
+  useEffect(() => {
+    let disposed = false; let stop: (() => void) | undefined;
+    void listen<{paperId: string; stage: string}>('paperdesk:report-progress', ({payload}) => { if (payload.paperId === paperId) setStatus(payload.stage); }).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  }, [paperId]);
+  async function run(action: () => Promise<void>) { setBusy(true); setError(''); try { await action(); } catch (e) { setError(String(e)); } finally { setBusy(false); } }
+  async function changed(note: Note) {
+    setReport(note); emitNoteChanged({ action: 'updated', noteId: note.id, note, updatedAt: note.updatedAt });
+    try { await syncChatGptOverview(paperId, body(note)); }
+    catch { setStatus('报告已保存；文库AI概览同步失败，可稍后重试。'); return; }
+    setStatus('已保存到本地，历史版本保留。阅读和编辑无需请求模型。');
   }
-
-  return (
-    <section className="space-y-4">
+  return <section className="space-y-4 text-sm">
+    <div className="flex items-center justify-between"><h3 className="font-semibold">文献概览与读书报告</h3><span className="text-xs text-slate-500">{report ? '本地已有报告' : '可直接手工填写'}</span></div>
+    <details className="rounded-xl border p-3"><summary className="cursor-pointer">报告渠道与账户设置</summary><div className="mt-3 space-y-3">
       <ChatGptConnection />
-      <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
-        <h3 className="text-sm font-semibold">{l('当前文献 · ChatGPT 助手', 'ChatGPT paper assistant')}</h3>
-        <p className="text-xs leading-6 text-slate-600">{l('直接读取当前论文及已关联补充材料的可提取文字，生成概览和七部分读书报告并保存本地。无需再到网页上传 PDF、复制粘贴回答。图像、公式和证据仍需核对原文。', 'Generate and save an overview and seven-part report from the paper and linked supplementary text. No manual PDF upload or answer copying. Check figures, formulas and source evidence.')}</p>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="pq-button px-3 py-2 text-xs" disabled={!paperId || !loaded || saving} onClick={() => void run(async () => {
-            if (report && !window.confirm('已有本地报告。重新生成会使用账户额度并更新这份笔记，请先备份需要保留的手工修改。继续？')) return;
-            setSaving(true);
-            try {
-              const result = await invoke<{ note: Note; cached: boolean; warnings: string[]; overviewSynced?: boolean }>('chatgpt_generate_report', { paperId, force: !!report });
-              setReport(result.note);
-              emitNoteChanged({ action: report ? 'updated' : 'created', noteId: result.note.id, note: result.note, updatedAt: result.note.updatedAt });
-              if (result.overviewSynced !== false) window.dispatchEvent(new CustomEvent('paperquay:native-summary-updated', { detail: { paperId, aiSummary: result.note.contentText || result.note.content } }));
-              setStatus(`报告已保存到本地笔记，之后阅读编辑不再请求 ChatGPT。${result.warnings.length ? ' 材料限制：' + result.warnings.join('；') : ''}`);
-            } finally { setSaving(false); }
-          })}>{saving ? '正在生成并保存…' : report ? '重新生成报告' : '一键生成并保存报告'}</button>
-          {report ? <button type="button" className="pq-button px-3 py-2 text-xs" onClick={() => void run(async () => {
-            const latest = await getChatGptReport(paperId); if (!latest) throw new Error('本地报告已删除。');
-            onOpenNote?.(); useTabsStore.getState().openNoteTab(latest.id, latest.title);
-            window.setTimeout(() => window.dispatchEvent(new CustomEvent('paperdesk:edit-saved-report', { detail: latest })), 250);
-          })}>打开已保存报告（不消耗额度）</button> : null}
-        </div>
-        <div className="flex gap-2"><input aria-label="向 ChatGPT 提问当前文献" className="pq-input min-w-0 flex-1 p-2 text-xs" value={question} onChange={e => setQuestion(e.target.value)} placeholder="直接提问，例如：对照组和样本量如何设计？" /><button type="button" className="pq-button px-3 text-xs" disabled={!paperId || !question.trim() || asking} onClick={() => void run(async () => {
-          setAsking(true); try { const result = await invoke<{ text: string }>('chatgpt_ask_paper', { paperId, question }); setAnswer(result.text); } finally { setAsking(false); }
-        })}>{asking ? '正在回答…' : '提问'}</button></div>
-        {answer ? <div className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-sm leading-7">{answer}</div> : null}
-        {status ? <p role="status" className={`text-xs leading-6 ${failed ? 'text-rose-600' : 'text-emerald-700'}`}>{status}</p> : null}
+      <div className="space-y-2 rounded-xl border p-3 text-xs"><strong>免费模型备用 · OpenRouter</strong><p className="leading-6 text-slate-500">只使用免费路由或当前标价为零的 :free 模型，额度以服务端为准。不会充值或回退收费模型；启用后会将论文提取文字发送至所选服务。</p>
+        <input aria-label="OpenRouter 免费模型密钥" type="password" autoComplete="off" className="pq-input w-full p-2" value={key} onChange={e => setKey(e.target.value)} placeholder={free?.configured ? '已保存密钥；留空保留' : '填入自己的 OpenRouter API Key'} />
+        <div className="flex flex-wrap gap-2"><button type="button" className="pq-button p-2" disabled={busy || !key} onClick={() => void run(async () => { setFree(await invoke<FreeStatus>('report_provider_configure', { key })); setKey(''); })}>安全保存密钥</button><button type="button" className="pq-button p-2" disabled={busy} onClick={() => void run(async () => { setFree(await invoke<FreeStatus>('report_provider_configure', { key: '', fallbackEnabled: false })); })}>移除密钥</button><button type="button" className="pq-button p-2" disabled={busy} onClick={() => void run(async () => { setModels(await invoke('report_provider_models')); })}>刷新免费模型</button></div>
+        {models.length > 0 && <select aria-label="免费报告模型" className="pq-input w-full p-2" value={free?.model || 'openrouter/free'} onChange={e => void run(async () => { setFree(await invoke<FreeStatus>('report_provider_configure', { model: e.target.value })); })}>{models.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}</select>}
+        <label className="flex items-start gap-2"><input type="checkbox" disabled={!free?.configured || busy} checked={free?.fallbackEnabled || false} onChange={e => void run(async () => { setFree(await invoke<FreeStatus>('report_provider_configure', { fallbackEnabled: e.target.checked })); })} />ChatGPT失败时，允许自动使用免费模型备用</label>
       </div>
-    <details className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-      <summary className="cursor-pointer text-sm font-medium text-slate-800">{l('备用：手动网页回填', 'Fallback: manual web workflow')}</summary>
-      <p className="mt-3 text-xs leading-6 text-slate-600">{l('按需复制提问材料，在网页中自行附上论文和补充文件，再把回答粘贴回来。这里只打开网页，不会自动上传文献；工作站不购买额度、不调用付费 API。网页可用额度取决于你的账户。', 'Copy the prompt, attach your PDF and supplements on the website, and paste the answer back. Opening the website does not upload papers. No paid API or credits are purchased; website limits depend on your account.')}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" onClick={() => void run(async () => {
-          if (!navigator.clipboard?.writeText) throw new Error(l('当前无法访问剪贴板，请从下方提问材料框手动复制。', 'Clipboard access is unavailable. Copy the prompt below manually.'));
-          await navigator.clipboard.writeText(buildChatGptReadingPrompt(paperTitle));
-          setStatus(l('提问材料已复制。请在 ChatGPT 网页自行附上 PDF。', 'Prompt copied. Attach the PDF yourself on ChatGPT.'));
-        })} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"><Copy className="h-3.5 w-3.5" />{l('复制提问材料', 'Copy prompt')}</button>
-        <button type="button" onClick={() => void run(async () => {
-          const url = URL.createObjectURL(new Blob([buildChatGptReadingPrompt(paperTitle)], { type: 'text/plain;charset=utf-8' }));
-          const anchor = document.createElement('a');
-          anchor.href = url; anchor.download = 'PaperDesk-ChatGPT-prompt.txt'; anchor.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          setStatus(l('已导出提问材料；正文和补充文件需你在网页中自行附上。', 'Prompt exported; attach the paper and supplements yourself on the website.'));
-        })} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"><Download className="h-3.5 w-3.5" />{l('导出提问材料', 'Export prompt')}</button>
-        <button type="button" onClick={() => void run(async () => {
-          await openExternalUrl('https://chatgpt.com/');
-          setStatus(l('已请求浏览器打开 ChatGPT，没有上传任何文件。', 'Requested opening ChatGPT; no files were uploaded.'));
-        })} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"><ExternalLink className="h-3.5 w-3.5" />{l('打开 ChatGPT', 'Open ChatGPT')}</button>
-      </div>
-      <details className="mt-3 text-xs text-slate-600">
-        <summary className="cursor-pointer">{l('查看或手动复制提问材料', 'View prompt')}</summary>
-        <textarea readOnly value={buildChatGptReadingPrompt(paperTitle)} aria-label={l('ChatGPT 提问材料', 'ChatGPT prompt')} className="mt-2 h-40 w-full rounded-xl border border-slate-200 bg-white p-3 leading-6" />
-      </details>
-      {report ? <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" className="pq-button px-3 py-2 text-xs" onClick={() => void run(async () => { const latest = await getChatGptReport(paperId); if (!latest) throw new Error('本地报告已删除，请重新保存。'); onOpenNote?.(); useTabsStore.getState().openNoteTab(latest.id, latest.title); window.setTimeout(() => window.dispatchEvent(new CustomEvent('paperdesk:edit-saved-report', { detail: latest })), 250); })}>{l('打开并编辑已保存报告', 'Edit saved report')}</button>
-        <button type="button" className="pq-button px-3 py-2 text-xs" onClick={() => void run(async () => {
-          const latest = await getChatGptReport(paperId); setReport(latest);
-          if (latest) {
-            const text = latest.contentText || latest.content;
-            if (reply && !window.confirm(l('用本地报告替换当前草稿？尚未保存的草稿会被替换。', 'Replace the current draft with the saved report?'))) return;
-            writeChatGptDraft(paperId, text.replace(/^来源：[^\n]*\n\n/, ''));
-          }
-        })}>{l('重新加载本地报告', 'Reload saved report')}</button>
-        <p className="w-full text-xs text-slate-500">{l('报告已保存在本地，阅读和编辑无需再次使用 ChatGPT。再次回填会更新同一份报告；请先复制需要保留的手工修改。', 'Read and edit locally without using ChatGPT again. Submitting a new answer updates the same report.')}</p>
-      </div> : null}
-      <label className="mt-4 block text-xs font-medium text-slate-700" htmlFor={`chatgpt-reply-${paperId || 'global'}`}>{l('粘贴网页回答（保存后可继续自由编辑）', 'Paste the website answer (editable after saving)')}</label>
-      <textarea id={`chatgpt-reply-${paperId || 'global'}`} value={reply} onChange={(event) => { try { writeChatGptDraft(paperId, event.target.value); } catch { setFailed(true); setStatus('草稿无法写入，请先复制内容到本地文件。'); } }} placeholder={l('在这里粘贴回答，核对原文证据后保存。', 'Paste the answer and check its source evidence.')} className="mt-2 min-h-32 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm leading-6" />
-      <button type="button" disabled={!paperId || !loaded || !reply.trim() || saving} onClick={() => void run(async () => {
-        setSaving(true);
-        try {
-          const note = await saveChatGptReport(paperId, paperTitle || l('文献', 'Paper'), reply, report);
-          setReport(note);
-          try { await syncChatGptOverview(paperId, reply); setStatus(l('报告已保存到本地笔记，文库摘要已同步。', 'Report saved locally and library overview synced.')); }
-          catch { setStatus(l('报告已保存到本地笔记；文库摘要同步失败，可重试保存。', 'Report saved locally; library overview sync failed. Retry saving to sync.')); }
-        } finally { setSaving(false); }
-      })} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs text-white disabled:opacity-50"><Save className="h-3.5 w-3.5" />{saving ? l('保存中…', 'Saving…') : l('保存回答为笔记', 'Save answer as note')}</button>
-      {status ? <p role="status" className={`mt-3 text-xs leading-6 ${failed ? 'text-rose-600' : 'text-emerald-700'}`}>{status}</p> : null}
-    </details>
-    </section>
-  );
+    </div></details>
+    <div className="flex flex-wrap items-center gap-2">
+      <select aria-label="报告生成渠道" className="pq-input p-2 text-xs" value={provider} onChange={e => setProvider(e.target.value)}><option value="chatgpt">ChatGPT 套餐</option><option value="openrouter-free">OpenRouter 免费模型</option></select>
+      <button type="button" className="pq-button p-2" disabled={busy || !loaded || !paperId} onClick={() => void run(async () => {
+        setStatus('正在读取文献及补充材料…');
+        const result = await invoke<{note: Note; warnings: string[]; overviewSynced?: boolean; provider?: string}>('chatgpt_generate_report', { paperId, force: !!report, provider });
+        setReport(result.note); emitNoteChanged({ action: 'updated', noteId: result.note.id, note: result.note, updatedAt: result.note.updatedAt });
+        if (result.overviewSynced !== false) window.dispatchEvent(new CustomEvent('paperquay:native-summary-updated', { detail: {paperId, aiSummary: body(result.note)} }));
+        setStatus(`新报告已保存本地，之前版本和未保存草稿均保留。${result.warnings.length ? ' 材料限制：' + result.warnings.join('；') : ''}`);
+      })}>{busy ? '处理中…' : report ? '生成新版本' : '生成并保存报告'}</button>
+      <button type="button" className="pq-button p-2" disabled={busy || !loaded} onClick={() => { if (!draft && report) writeChatGptDraft(paperId, body(report)); setEditing(true); }}>手工编辑</button>
+      {report && <button type="button" className="pq-button p-2" onClick={() => { onOpenNote?.(); useTabsStore.getState().openNoteTab(report.id, report.title); }}>在笔记中打开</button>}
+    </div>
+    <p className="text-xs leading-6 text-slate-500">生成内容包括200–300字梗概和七部分读书报告。只分析可提取文字，并标明文件、物理页码和材料限制；图像、复杂公式和结论需对照原文。</p>
+    {error && <p role="alert" className="break-words text-xs text-rose-600">{error}</p>}{status && <p role="status" className="text-xs leading-6 text-emerald-700">{status}</p>}
+    {(editing || !report || draft) && <div className="space-y-2"><label className="block text-xs font-medium">本地草稿 · 自动保留<textarea aria-label="读书报告本地草稿" className="pq-input mt-2 min-h-72 w-full resize-y p-3 text-sm leading-7" value={draft} onChange={e => { try { writeChatGptDraft(paperId, e.target.value); } catch { setError('草稿保存失败，请复制内容后重试。'); } }} placeholder="无须连接AI，可以直接填写梗概与读书报告。" /></label>
+      <div className="flex flex-wrap gap-2"><button type="button" className="pq-button p-2" disabled={busy || !loaded || !draft.trim()} onClick={() => void run(async () => { await changed(await saveChatGptReport(paperId, paperTitle || '文献', draft, report)); setEditing(false); })}>保存报告</button><button type="button" className="pq-button p-2" disabled={busy} onClick={() => void run(async () => { setReport(await getChatGptReport(paperId)); setStatus('本地版本已重新加载，当前草稿未覆盖。'); })}>重新加载本地版本</button>{report && <button type="button" className="pq-button p-2" disabled={busy} onClick={() => { writeChatGptDraft(paperId, body(report)); setEditing(true); }}>将已保存正文载入草稿</button>}</div>
+    </div>}
+    {report && <details open={!editing} className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">已保存报告 · {new Date(report.updatedAt).toLocaleString()}</summary><div className="prose prose-sm mt-4 max-w-none break-words dark:prose-invert"><ReactMarkdown>{report.contentText || report.content}</ReactMarkdown></div></details>}
+    {report && <details className="space-y-2 rounded-xl border p-3" onToggle={e => { if (e.currentTarget.open) void run(async () => { setVersions(await invoke<Version[]>('notes_versions', { id: report.id })); }); }}><summary className="cursor-pointer">报告历史版本</summary>
+      {versions.map(v => <button key={v.id} type="button" className="pq-button m-1 p-2 text-xs" onClick={() => setPreview(v)}>{new Date(v.savedAt).toLocaleString()}</button>)}
+      {preview && <div className="space-y-2"><pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs leading-6">{preview.note.contentText || preview.note.content}</pre><button type="button" className="pq-button p-2" disabled={busy} onClick={() => void run(async () => { const restored = await invoke<Note>('notes_restore_version', { id: report.id, versionId: preview.id, expectedUpdatedAt: report.updatedAt, expectedContent: report.content }); await changed(restored); setPreview(null); setVersions(await invoke('notes_versions', { id: report.id })); })}>恢复此版本（保留当前版本）</button></div>}
+    </details>}
+    <details className="rounded-xl border p-3"><summary className="cursor-pointer">文献提问 · 使用ChatGPT套餐额度</summary><div className="mt-3 flex gap-2"><input aria-label="文献问题" className="pq-input min-w-0 flex-1 p-2" value={question} onChange={e => setQuestion(e.target.value)} /><button type="button" className="pq-button p-2" disabled={busy || !question.trim()} onClick={() => void run(async () => { const result = await invoke<{text: string}>('chatgpt_ask_paper', { paperId, question }); setAnswer(result.text); })}>提问</button></div>{answer && <p className="mt-3 whitespace-pre-wrap leading-7">{answer}</p>}</details>
+    <details className="rounded-xl border p-3"><summary className="cursor-pointer">手动网页回填</summary><p className="my-2 text-xs text-slate-500">仅复制提问材料，不会上传文献或自动生成报告。</p><div className="flex gap-2"><button type="button" className="pq-button p-2" onClick={() => void navigator.clipboard.writeText(buildChatGptReadingPrompt(paperTitle)).then(() => setManualStatus('提问材料已复制；请在网页自行附上PDF，将回答填入本地草稿后保存。')).catch(e => setManualStatus(String(e)))}>复制提问材料</button><button type="button" className="pq-button p-2" onClick={() => void openExternalUrl('https://chatgpt.com/').catch(e => setManualStatus(String(e)))}>打开ChatGPT网页</button></div><p className="mt-2 text-xs" role="status">{manualStatus}</p></details>
+  </section>;
 }

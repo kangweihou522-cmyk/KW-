@@ -26,6 +26,7 @@ interface PdfOption {
 
 export interface ReaderWorkspaceHeaderProps {
   sourceLabel: string;
+  toolbarHostId?: string;
   documentTitle: string;
   documentCreators: string;
   documentYear: string;
@@ -357,6 +358,7 @@ function HeaderToolsMenu({
 }
 
 export function ReaderWorkspaceHeader({
+  toolbarHostId,
   sourceLabel,
   documentTitle,
   documentCreators,
@@ -388,6 +390,15 @@ export function ReaderWorkspaceHeader({
   useEffect(() => {
     localStorage.setItem(WORKSPACE_HEADER_COLLAPSED_STORAGE_KEY, String(headerCollapsed));
   }, [headerCollapsed]);
+
+  if (workspaceStage === 'reading') return <nav aria-label={l('阅读导航', 'Reading navigation')} className="flex min-w-0 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-1 dark:border-white/10 dark:bg-[var(--pq-surface-1)]">
+    <HeaderStageTabs workspaceStage={workspaceStage} onStageChange={onStageChange} />
+    <span className="min-w-0 flex-1 truncate text-sm font-medium" title={documentTitle}>{documentTitle}</span>
+    <HeaderReadingModeTabs readingViewMode={readingViewMode} onReadingViewModeChange={onReadingViewModeChange} />
+    <div id={toolbarHostId} className="min-w-0 overflow-x-auto" />
+    <button type="button" onClick={onEnterImmersive} title={l('沉浸阅读', 'Immersive reading')} className="pq-icon-button shrink-0 p-2"><Maximize2 className="h-4 w-4" /></button>
+    <HeaderToolsMenu {...{loading, translating, translationCancelling, onOpenMineruJson, onCloudParse, onTranslateDocument, onCancelTranslateDocument, onOpenPreferences}} />
+  </nav>;
 
   return (
     <div
@@ -430,37 +441,14 @@ export function ReaderWorkspaceHeader({
               onStageChange={onStageChange}
             />
 
-            {workspaceStage === 'reading' ? (
-              <HeaderReadingModeTabs
-                readingViewMode={readingViewMode}
-                onReadingViewModeChange={onReadingViewModeChange}
-              />
-            ) : null}
+
           </div>
         </div>
 
         <div className="ml-auto flex shrink-0 flex-nowrap items-center justify-end gap-2">
-          {workspaceStage === 'reading' ? (
-            <HeaderPdfVersionControl
-              currentPdfVariantLabel={currentPdfVariantLabel}
-              currentPdfPath={currentPdfPath}
-              availablePdfOptions={availablePdfOptions}
-              onCurrentPdfPathChange={onCurrentPdfPathChange}
-            />
-          ) : null}
 
-          {workspaceStage === 'reading' ? (
-            <button
-              type="button"
-              onClick={onEnterImmersive}
-              className="inline-flex h-10 min-w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-2 text-[0px] font-medium text-slate-700 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:text-[var(--pq-text-muted)] dark:hover:border-white/15 dark:hover:bg-[var(--pq-surface-2)] 2xl:px-3 2xl:text-sm"
-              title={l('沉浸阅读', 'Immersive Reading')}
-              aria-label={l('沉浸阅读', 'Immersive Reading')}
-            >
-              <Maximize2 className="mr-0 h-4 w-4 2xl:mr-2" strokeWidth={1.8} />
-              {l('沉浸', 'Immersive')}
-            </button>
-          ) : null}
+
+
 
           <button
             type="button"

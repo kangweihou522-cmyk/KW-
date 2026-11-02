@@ -452,9 +452,10 @@ function SelectionPanel({
         </HintPanel>
       ) : (
         <>
-          <div className="rounded-[22px] border border-slate-200/80 bg-white px-4 py-4">
-            <MarkdownPreview content={selectedExcerpt.text} />
-          </div>
+          <details className="rounded-xl border border-slate-200 p-3" open={!selectedExcerptTranslation && !selectedExcerptTranslating}>
+            <summary className="cursor-pointer text-xs text-slate-500">{l('所选原文', 'Selected original')}</summary>
+            <div className="mt-2 max-h-36 overflow-auto"><MarkdownPreview content={selectedExcerpt.text} /></div>
+          </details>
 
           {selectedExcerptError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
@@ -486,7 +487,7 @@ function SelectionPanel({
             </HintPanel>
           ) : (
             <HintPanel icon={<Bot className="h-4 w-4" strokeWidth={1.8} />}>
-              {l('请先配置模型后再使用翻译能力。', 'Configure a model before using translation.')}
+              {l('请在下方翻译设置中选择渠道。离线翻译无需登录。', 'Choose a provider below. Offline translation needs no sign-in.')}
             </HintPanel>
           )}
 

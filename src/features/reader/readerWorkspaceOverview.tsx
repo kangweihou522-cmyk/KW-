@@ -1,3 +1,4 @@
+import { PaperPersonalOverview } from './PaperPersonalOverview';
 import { ArrowRight, CircleStop, FileJson, FileText, Languages, ScanSearch, Sparkles } from 'lucide-react';
 import { useLocaleText } from '../../i18n/uiLanguage';
 import type { PaperSummary, PositionedMineruBlock } from '../../types/reader';
@@ -171,6 +172,7 @@ export function ReaderWorkspaceOverview({
             />
           ) : null}
 
+          <PaperPersonalOverview paperId={currentDocument.itemKey || currentDocument.workspaceId} />
           <div data-tour="ai-summary">
             <SummaryPanel
               paperId={currentDocument.source === 'native-library' ? currentDocument.itemKey : currentDocument.workspaceId}

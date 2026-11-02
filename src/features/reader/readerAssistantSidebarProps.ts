@@ -81,6 +81,7 @@ export function buildReaderAssistantSidebarProps(
     activePanel: input.activePanel,
     onActivePanelChange: input.onActivePanelChange,
     aiWorkflow: input.aiWorkflow,
+    overviewStorageId: input.currentDocument.itemKey || input.currentDocument.workspaceId,
     paperId: input.currentDocument.source === 'native-library' ? input.currentDocument.itemKey : undefined,
     documentTitle: input.currentDocument.title,
     documentMeta: formatReaderDocumentMeta(input.l, input.currentDocument),
