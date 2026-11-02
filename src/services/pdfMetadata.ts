@@ -1,3 +1,4 @@
+import { paperDoi, isPublisherAuthor } from '../utils/bibliographicEvidence';
 import { pdfjs } from 'react-pdf';
 import { readLocalBinaryFile } from './desktop';
 import type { LocalPdfMetadataPreview } from '../types/metadata';
@@ -164,8 +165,9 @@ function splitAuthors(value: string): string[] {
 }
 
 function cleanAuthorsCandidate(value: string): string[] {
+  if (isPublisherAuthor(value)) return [];
   const authors = splitAuthors(value).filter((author) => {
-    if (author.length < 2 || author.length > 64) {
+    if (isPublisherAuthor(author) || author.length < 2 || author.length > 120) {
       return false;
     }
 
@@ -176,7 +178,7 @@ function cleanAuthorsCandidate(value: string): string[] {
     return /[\u4e00-\u9fffA-Za-z]/.test(author);
   });
 
-  return authors.length <= 8 ? authors : [];
+  return authors.length <= 150 ? authors : [];
 }
 
 function extractDoiCandidate(value: string): string | null {
@@ -703,15 +705,11 @@ export async function extractLocalPdfMetadataPreview(
       pickPdfTitleFromLines(lines, path) ??
       cleanTitleCandidate(rawTitle, path) ??
       cleanTitleCandidate(fileStem(path), path);
-    const doi =
-      extractDoiCandidate(rawTitle) ??
-      extractDoiCandidate(rawSubject) ??
-      extractDoiCandidate(rawKeywords) ??
-      pickDoiFromLines(lines);
+    const doi = paperDoi(firstPageText) || paperDoi([rawTitle, rawSubject, rawKeywords].join(' '));
     const authors = cleanAuthorsCandidate(rawAuthor);
-    const publication =
-      rawSubject && !/^(摘要|abstract|keywords?)$/i.test(rawSubject) ? rawSubject : null;
-    const year = parsePdfMetadataDate(dateYear);
+    const publication = decodePdfMetadataValue(metadata?.metadata?.get('prism:publicationname')) || null;
+    // PDF creation/modification dates describe the file, not the publication.
+    const year = null;
 
     firstPage.cleanup();
 

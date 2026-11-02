@@ -160,6 +160,7 @@ export default function ImportConfirmationDialog({
                   </button>
                 </div>
 
+                {draft.metadataStatus && <p role="status" className="mb-3 text-xs text-[var(--pq-text-muted)]">{draft.metadataStatus}</p>}
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
                   <label className="lg:col-span-2">
                     <FieldLabel>{l('标题', 'Title')}</FieldLabel>
@@ -271,7 +272,7 @@ export default function ImportConfirmationDialog({
             <button
               type="button"
               onClick={onConfirm}
-              disabled={working || drafts.length === 0}
+              disabled={working || metadataWorking || drafts.length === 0}
               className="pq-button-primary px-5 py-2.5 text-sm disabled:opacity-60"
             >
               {working ? l('正在导入...', 'Importing...') : l('确认导入', 'Confirm Import')}

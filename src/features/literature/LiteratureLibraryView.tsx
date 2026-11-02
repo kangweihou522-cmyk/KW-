@@ -147,6 +147,7 @@ function buildManualMetadataUpdateRequest(
   metadata: Awaited<ReturnType<typeof lookupLiteratureMetadata>>,
   draft: Pick<MetadataDialogState, 'title' | 'doi'>,
 ): UpdatePaperRequest | null {
+  if (metadata?.verified) return metadataUpdateForPaper(paper, metadata);
   const request: UpdatePaperRequest = {
     paperId: paper.id,
   };
@@ -1104,7 +1105,7 @@ export default function LiteratureLibraryView({
 
   const handleImportDraftChange = (path: string, patch: Partial<ImportDraftItem>) => {
     setImportDrafts((current) =>
-      current.map((draft) => (draft.path === path ? { ...draft, ...patch } : draft)),
+      current.map((draft) => (draft.path === path ? { ...draft, ...patch, manualFields: [...new Set([...(draft.manualFields || []), ...Object.keys(patch)])] } : draft)),
     );
   };
 
@@ -1132,18 +1133,27 @@ export default function LiteratureLibraryView({
       let missedCount = 0;
 
       try {
-        for (const draft of draftsToLookup) {
+        const queue = [...draftsToLookup]; let lastFailure = '';
+        await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+          while (queue.length) {
+            const draft = queue.shift()!;
+            try {
           const metadata = await lookupLiteratureMetadata({
             doi: draft.doi || null,
             title: draft.title || titleFromPdfPath(draft.path),
             path: draft.path,
+            firstPageText: draft.firstPageText,
+            evidenceTitle: draft.evidenceTitle,
           });
 
           if (!metadata) {
+            setImportDrafts(current => current.map(item => item.path === draft.path ? { ...item, metadataStatus: '未找到可靠匹配，请核对 DOI' } : item));
             missedCount += 1;
             continue;
           }
 
+          const metadataStatus = `已核对：${metadata.source === 'crossref' ? 'Crossref' : 'OpenAlex'} / ${metadata.matchedBy === 'doi' ? 'DOI' : '标题'}`;
+          setImportDrafts(current => current.map(item => item.path === draft.path ? { ...item, metadataStatus } : item));
           const mergedDraft = mergeRemoteMetadataIntoDraft(draft, metadata);
           const changed =
             mergedDraft.title !== draft.title ||
@@ -1152,7 +1162,7 @@ export default function LiteratureLibraryView({
             mergedDraft.publication !== draft.publication ||
             mergedDraft.doi !== draft.doi ||
             mergedDraft.url !== draft.url ||
-            mergedDraft.abstractText !== draft.abstractText;
+            mergedDraft.abstractText !== draft.abstractText || mergedDraft.volume !== draft.volume || mergedDraft.issue !== draft.issue || mergedDraft.pages !== draft.pages || mergedDraft.publishedDate !== draft.publishedDate;
 
           if (!changed) {
             missedCount += 1;
@@ -1165,7 +1175,10 @@ export default function LiteratureLibraryView({
             ),
           );
           filledCount += 1;
-        }
+            } catch (error) { missedCount++; lastFailure = error instanceof Error ? error.message : String(error); const message = lastFailure; setImportDrafts(current => current.map(item => item.path === draft.path ? { ...item, metadataStatus: message } : item)); }
+          }
+        }));
+        if (lastFailure) setError(lastFailure);
 
         if (!silent) {
           setStatusMessage(
@@ -1339,7 +1352,10 @@ export default function LiteratureLibraryView({
       let missedCount = 0;
       let failedCount = 0;
 
-      for (const [index, paper] of allPapers.entries()) {
+      const queue = Array.from(allPapers.entries());
+      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+        while (queue.length) {
+          const [index, paper] = queue.shift()!;
         setStatusMessage(
           l(
             `正在解析元数据：${index + 1}/${allPapers.length} - ${paper.title}`,
@@ -1371,7 +1387,8 @@ export default function LiteratureLibraryView({
         } catch {
           failedCount += 1;
         }
-      }
+        }
+      }));
 
       await refreshAll();
 
@@ -1564,7 +1581,7 @@ export default function LiteratureLibraryView({
   };
 
   const reloadAfterPaperUpdate = async (updatedPaper: LiteraturePaper) => {
-    const [nextCategories, nextPapers] = await Promise.all([
+    const [nextCategories, nextPapers, nextSettings] = await Promise.all([
       listLibraryCategories(),
       listLibraryPapers({
         categoryId: selectedCategoryId,
@@ -1573,8 +1590,10 @@ export default function LiteratureLibraryView({
         sortDirection: paperSort.sortDirection,
         limit: 500,
       }),
+      getLibrarySettings(),
     ]);
 
+    setSettings(nextSettings);
     setCategories(nextCategories);
     setPapers(nextPapers);
     setSelectedPaperId(
@@ -2024,7 +2043,10 @@ export default function LiteratureLibraryView({
           loading={loading}
           working={working}
           papers={papers}
-          saving={paperSaving}
+          metadataLayout={settings?.metadataLayout}
+          metadataWorking={bulkMetadataWorking}
+          onEnrichMetadata={() => void handleEnrichAllMetadata()}
+          saving={paperSaving || bulkMetadataWorking}
           onSavePaper={handleSavePaper}
           paperStatuses={paperStatuses}
           showReadingHeatmap={showReadingHeatmap}
@@ -2080,7 +2102,8 @@ export default function LiteratureLibraryView({
       <div data-tour="ai-summary" className="h-full min-h-0 overflow-hidden">
         <LiteraturePaperDetails
           selectedPaper={selectedPaper}
-          saving={paperSaving}
+          metadataLayout={settings?.metadataLayout}
+          saving={paperSaving || bulkMetadataWorking}
           onOpenPaper={onOpenPaper}
           onSavePaper={handleSavePaper}
           actionState={selectedPaper ? paperActionStates[selectedPaper.id] ?? null : null}
@@ -2300,7 +2323,7 @@ export default function LiteratureLibraryView({
         drafts={importDrafts}
         categories={categories}
         working={working}
-        metadataWorking={metadataWorking || localImportMetadataWorking}
+        metadataWorking={metadataWorking || localImportMetadataWorking || importDrafts.some(draft => !metadataAttemptedPaths.has(draft.path))}
         onDraftChange={handleImportDraftChange}
         onRemoveDraft={handleRemoveImportDraft}
         onAutoFillMetadata={() => void handleAutoFillImportMetadata(importDrafts)}

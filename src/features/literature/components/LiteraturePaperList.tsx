@@ -15,6 +15,7 @@ import {
   RefreshCw,
   CheckCircle2,
   Sparkles,
+  Loader2,
   Search,
   Star,
 } from 'lucide-react';
@@ -24,7 +25,7 @@ import type { ListPapersRequest, LiteraturePaper } from '../../../types/library'
 import { paperAuthors } from '../literatureUi';
 import { PaperTags } from './PaperTags';
 import { PaperImpactFactor, PaperMetadataEditor } from './PaperMetadataEditor';
-import type { UpdatePaperRequest } from '../../../types/library';
+import type { UpdatePaperRequest, MetadataLayout } from '../../../types/library';
 
 export interface LiteraturePaperListStatus {
   mineruParsed: boolean;
@@ -37,6 +38,9 @@ export type LiteraturePaperListSortDirection = NonNullable<ListPapersRequest['so
 
 interface LiteraturePaperListProps {
   loading: boolean;
+  metadataLayout?: MetadataLayout;
+  metadataWorking?: boolean;
+  onEnrichMetadata?: () => void;
   working: boolean;
   papers: LiteraturePaper[];
   paperStatuses: Record<string, LiteraturePaperListStatus>;
@@ -75,6 +79,7 @@ interface LiteraturePaperListProps {
 
 export default function LiteraturePaperList({
   loading,
+  metadataLayout, metadataWorking, onEnrichMetadata,
   working,
   papers,
   paperStatuses,
@@ -125,6 +130,7 @@ export default function LiteraturePaperList({
   const [suppressClickPaperId, setSuppressClickPaperId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState('');
   const manualSortingEnabled = sortBy === 'manual';
+  const hiddenMetadata = new Set(metadataLayout?.hiddenFields || []);
   const sortValue = `${sortBy}:${sortDirection}`;
   const tags = [...new Set(papers.flatMap(paper => paper.tags.map(tag => tag.name)))].sort((a, b) => a.localeCompare(b));
   const visiblePapers = tagFilter ? papers.filter(paper => paper.tags.some(tag => tag.name === tagFilter)) : papers;
@@ -423,6 +429,7 @@ export default function LiteraturePaperList({
           </select>
 
           <select aria-label={l('按标签筛选', 'Filter by tag')} value={tagFilter} onChange={event => { const tag = event.target.value; setTagFilter(tag); const first = papers.find(paper => !tag || paper.tags.some(value => value.name === tag)); if (first) onSelectPaper(first.id); }} className="pq-input h-9 max-w-[140px] px-2 text-xs"><option value="">{l('全部标签', 'All tags')}</option>{tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+          <button type="button" title={l('补全文献信息', 'Complete paper metadata')} aria-label={l('补全文献信息', 'Complete paper metadata')} disabled={working || metadataWorking} className="pq-button h-9 px-2 text-xs" onClick={onEnrichMetadata}>{metadataWorking ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}{l('补全', 'Complete')}</button>
           <button
             type="button"
             onClick={onImportPdfs}
@@ -558,20 +565,21 @@ export default function LiteraturePaperList({
                           <time dateTime={new Date(paper.updatedAt).toISOString()} title={new Date(paper.updatedAt).toLocaleString()} className="text-[10px] text-[var(--pq-text-faint)]">{l('更新于 ', 'Updated ')}{new Date(paper.updatedAt).toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit' })}</time>
                           <div className="mt-0.5 flex items-center justify-end" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                             <button type="button" disabled={saving} aria-label={paper.isFavorite ? l('取消收藏', 'Remove from favorites') : l('加入收藏', 'Add to favorites')} title={paper.isFavorite ? l('取消收藏', 'Remove from favorites') : l('加入收藏', 'Add to favorites')} onClick={() => void onSavePaper({ paperId: paper.id, isFavorite: !paper.isFavorite })} className={`pq-icon-button h-7 w-7 ${paper.isFavorite ? 'text-amber-500' : 'text-[var(--pq-text-faint)]'}`}><Star className="h-3.5 w-3.5" fill={paper.isFavorite ? 'currentColor' : 'none'} /></button>
-                            <PaperMetadataEditor paper={paper} saving={saving} onSave={onSavePaper} />
+                            <PaperMetadataEditor metadataLayout={metadataLayout} paper={paper} saving={saving} onSave={onSavePaper} />
                           </div>
                         </div>
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-[var(--pq-text-muted)]" title={paperAuthors(paper, locale)}>{paperAuthors(paper, locale)}</p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-[var(--pq-accent)]">{paper.publication || l('期刊待补充', 'Journal not recorded')}</span><PaperImpactFactor paper={paper} saving={saving} onSave={onSavePaper} /></div>
+                      {!hiddenMetadata.has('authors') && <p className="mt-0.5 break-words text-xs leading-5 text-[var(--pq-text-muted)]" title={paperAuthors(paper, locale)}>{paperAuthors(paper, locale)}</p>}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">{!hiddenMetadata.has('publication') && <span className="text-sm font-semibold text-[var(--pq-accent)]">{paper.publication || l('期刊待补充', 'Journal not recorded')}</span>}{!hiddenMetadata.has('impactFactor') && <PaperImpactFactor paper={paper} saving={saving} onSave={onSavePaper} />}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--pq-text-muted)]">
-                        <span>{paper.publishedDate || paper.year || l('年份未知', 'Year unknown')}</span>
-                        {(paper.volume || paper.issue) && <span>{paper.volume}{paper.issue ? `(${paper.issue})` : ''}</span>}
-                        {paper.pages && <span>{paper.pages}</span>}
-                        {paper.doi && <span className="min-w-0 break-all select-text">DOI {paper.doi}</span>}
+                        <span>{!hiddenMetadata.has('publishedDate') && paper.publishedDate || !hiddenMetadata.has('year') && paper.year || ''}</span>
+                        {(!hiddenMetadata.has('volume') && paper.volume || !hiddenMetadata.has('issue') && paper.issue) && <span>{!hiddenMetadata.has('volume') && paper.volume}{!hiddenMetadata.has('issue') && paper.issue ? `(${paper.issue})` : ''}</span>}
+                        {!hiddenMetadata.has('pages') && paper.pages && <span>{paper.pages}</span>}
+                        {!hiddenMetadata.has('doi') && paper.doi && <span className="min-w-0 break-all select-text">DOI {paper.doi}</span>}
                         {mineruParsed && <span title={l('已完成本地解析', 'Locally parsed')}><CheckCircle2 className="h-3 w-3 text-emerald-600" /></span>}
                         {overviewGenerated && <span title={l('概览已生成', 'Overview ready')}><Sparkles className="h-3 w-3 text-sky-600" /></span>}
                       </div>
+                      {metadataLayout?.customFields.filter(field => !hiddenMetadata.has(field.id) && paper.customFields?.[field.id]?.trim()).map(field => <p key={field.id} className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-5"><span className="mr-1 text-[var(--pq-text-muted)]">{field.label}：</span><span>{paper.customFields?.[field.id]}</span></p>)}
                       <PaperTags paper={paper} saving={saving} onSave={onSavePaper} />
                     </div>
                   </div>

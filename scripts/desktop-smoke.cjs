@@ -12,6 +12,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  console.log('BODY', (await page.locator('body').innerText()).slice(-400));
  await page.reload();await page.waitForTimeout(1500);
  await verifyLibraryMetadata(page, imported[0].paper);
+ await require('./metadata-desktop-smoke.cjs').verifyMetadataFields(page, imported[0].paper);
  await page.getByText('fictional-paper',{exact:false}).first().dblclick();await page.waitForTimeout(2000);console.log('READING', (await page.locator('body').innerText()).slice(0,500));
  const assert=require('node:assert/strict');
  const spans=page.locator('.textLayer span'); console.log('TEXT_SPANS',await spans.allTextContents());
@@ -42,6 +43,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  console.log('PASS manual report edited by section, saved with no AI account and prior version retained.');await reportDialog.getByRole('button',{name:'关闭',exact:true}).click();
  await page.reload();await page.waitForTimeout(1800);const reopened=await page.evaluate(id=>window.paperquay.invoke('paper_document_get',{paperId:id}),paper.id);assert.equal(reopened.version,2);assert.equal(reopened.content.at(-1).title,'研究设计');console.log('PASS application reload retained overview versions.');
  await verifyLibraryOverview(page,paper,home,app);
+ if(process.argv.includes('--metadata-lookup')) await require('./metadata-desktop-smoke.cjs').verifyLiveMetadata(app,page,home);
  if(process.argv.includes('--quality-install')) await require('./translation/packaged-quality-smoke.cjs').verifyPackagedQuality(app,page);
 
  }finally{await app.close();console.log('Desktop smoke fixture:',home);}

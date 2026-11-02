@@ -1,5 +1,10 @@
 export interface ImportDraftItem {
   path: string;
+  metadataStatus?: string;
+  firstPageText?: string | null;
+  evidenceTitle?: string | null;
+  manualFields?: string[];
+  resolvedAuthors?: string[];
   title: string;
   authors: string;
   year: string;

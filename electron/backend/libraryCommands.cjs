@@ -1,3 +1,4 @@
+const { readMetadataJson } = require('./metadataHttp.cjs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const {
@@ -300,6 +301,11 @@ function mapOpenAlexWork(item) {
   };
 }
 
+function crossrefTitle(item) {
+  const title = firstString(item?.title); const subtitle = firstString(item?.subtitle);
+  return title && subtitle && !normalizeTitleForMatching(title).includes(normalizeTitleForMatching(subtitle)) ? `${title}: ${subtitle}` : title;
+}
+
 function mapCrossrefWork(item) {
   if (!item || typeof item !== 'object') {
     return null;
@@ -308,9 +314,9 @@ function mapCrossrefWork(item) {
   return {
     source: 'crossref',
     doi: normalizeDoi(item.DOI) || null,
-    title: firstString(item.title),
+    title: crossrefTitle(item),
     authors: (item.author ?? [])
-      .map((author) => [author.given, author.family].filter(Boolean).join(' '))
+      .map((author) => [author.given, author.family, author.suffix].filter(Boolean).join(' ') || author.name || '')
       .map(cleanString)
       .filter(Boolean),
     year: normalizeYear(item.issued?.['date-parts']?.[0]?.[0] ?? item.published?.['date-parts']?.[0]?.[0]),
@@ -358,7 +364,7 @@ function mergeMetadataResults(...results) {
   return merged;
 }
 
-async function lookupOpenAlexMetadata({ doi, title, settings }) {
+async function lookupOpenAlexMetadata({ doi, title, settings, json = readMetadataJson }) {
   if (settings?.openAlexEnabled === false) {
     return null;
   }
@@ -383,25 +389,33 @@ async function lookupOpenAlexMetadata({ doi, title, settings }) {
     return null;
   }
 
-  const data = await readRequestJson(await fetch(endpoint), 'OpenAlex metadata');
+  const data = await json(endpoint);
   const item = doi ? data : bestOpenAlexTitleMatch(data?.results, title);
   return mapOpenAlexWork(item);
 }
 
-async function lookupCrossrefMetadata({ doi, title }) {
+async function lookupCrossrefMetadata({ doi, title, json = readMetadataJson }) {
   const endpoint = doi
     ? `https://api.crossref.org/works/${encodeURIComponent(doi)}`
     : title
-      ? `https://api.crossref.org/works?rows=1&query.title=${encodeURIComponent(title)}`
+      ? `https://api.crossref.org/works?rows=3&query.title=${encodeURIComponent(title)}`
       : '';
 
   if (!endpoint) {
     return null;
   }
 
-  const data = await readRequestJson(await fetch(endpoint), 'Crossref metadata');
-  const item = doi ? data.message : data.message?.items?.[0];
-  return mapCrossrefWork(item);
+  const data = await json(endpoint);
+  let item;
+  if (doi) {
+    item = data.message;
+    if (normalizeDoi(item?.DOI) !== doi) return null;
+  } else {
+    const candidates = (data.message?.items || []).map(item => ({ item, score: titleSimilarity(title, crossrefTitle(item)) })).sort((a, b) => b.score - a.score);
+    if (!candidates.length || candidates[0].score < 0.93 || candidates[1] && candidates[0].score - candidates[1].score < 0.04) return null;
+    item = candidates[0].item;
+  }
+  return { ...mapCrossrefWork(item), verified: true, matchedBy: doi ? 'doi' : 'title' };
 }
 
 function emitLibraryReferenceProgress(sender, payload) {
@@ -458,14 +472,14 @@ function mapCrossrefReference(reference, index, paperId) {
   };
 }
 
-async function fetchCrossrefReferences(doi, paperId = '') {
+async function fetchCrossrefReferences(doi, paperId = '', json = readMetadataJson) {
   const normalizedDoi = normalizeDoi(doi);
   if (!normalizedDoi) {
     return [];
   }
 
   const endpoint = `https://api.crossref.org/works/${encodeURIComponent(normalizedDoi)}`;
-  const data = await readRequestJson(await fetch(endpoint), 'Crossref references');
+  const data = await json(endpoint);
   const references = Array.isArray(data?.message?.reference) ? data.message.reference : [];
 
   return references
@@ -476,6 +490,13 @@ async function fetchCrossrefReferences(doi, paperId = '') {
 
 function createLibraryCommands(context) {
   const { appPaths, store } = context;
+  const registryCache = new Map();
+  const metadataRequest = async url => {
+    const cached = registryCache.get(url); if (cached && Date.now() - cached.at < 600000) return cached.value;
+    const value = await (context.metadataJson || readMetadataJson)(url);
+    if (registryCache.size >= 200) registryCache.delete(registryCache.keys().next().value);
+    registryCache.set(url, { value, at: Date.now() }); return value;
+  };
 
   const commands = {
     async library_init() {
@@ -696,7 +717,7 @@ function createLibraryCommands(context) {
           continue;
         }
 
-        fetchCrossrefReferences(paper.doi, paper.id)
+        fetchCrossrefReferences(paper.doi, paper.id, metadataRequest)
           .then((refs) => {
             if (refs.length > 0) {
               store.saveReferences(paper.id, refs);
@@ -735,6 +756,18 @@ function createLibraryCommands(context) {
       const paper = library.papers.find((item) => item.id === request.paperId);
       if (!paper) throw new Error('Paper does not exist');
 
+      if (request.metadataLayout !== undefined) {
+        const layout = request.metadataLayout;
+        const builtins = new Set(['authors', 'publication', 'year', 'volume', 'issue', 'pages', 'publishedDate', 'doi', 'impactFactor', 'url', 'abstractText', 'keywords', 'userNote', 'citation']);
+        if (!layout || !Array.isArray(layout.hiddenFields) || !Array.isArray(layout.customFields) || layout.customFields.length > 64 || layout.customFields.some(field => !/^custom_[A-Za-z0-9_-]{1,72}$/.test(field.id) || typeof field.label !== 'string' || !field.label.trim() || field.label.length > 80)) throw new Error('自定义项目信息无效。');
+        const ids = layout.customFields.map(field => field.id);
+        if (new Set(ids).size !== ids.length || layout.hiddenFields.some(key => !builtins.has(key) && !ids.includes(key))) throw new Error('项目重复或隐藏项目无效。');
+        library.settings.metadataLayout = { hiddenFields: [...new Set(layout.hiddenFields)], customFields: layout.customFields.map(field => ({ id: field.id, label: field.label.trim() })) };
+      }
+      if (request.customFields !== undefined) {
+        if (!request.customFields || Array.isArray(request.customFields) || typeof request.customFields !== 'object' || Object.keys(request.customFields).length > 64 || Object.entries(request.customFields).some(([key, value]) => !/^custom_[A-Za-z0-9_-]{1,72}$/.test(key) || typeof value !== 'string' || value.length > 20000)) throw new Error('自定义项目内容无效。');
+        paper.customFields = request.customFields;
+      }
       for (const key of ['title', 'year', 'publication', 'volume', 'issue', 'pages', 'publishedDate', 'doi', 'url', 'abstractText', 'userNote', 'aiSummary', 'citation']) {
         if (request[key] !== undefined) paper[key] = request[key];
       }
@@ -819,7 +852,7 @@ function createLibraryCommands(context) {
         return { paperId: targetPaperId, fetched: cached.length, skipped: true, references: cached };
       }
 
-      const refs = await fetchCrossrefReferences(paper.doi, targetPaperId);
+      const refs = await fetchCrossrefReferences(paper.doi, targetPaperId, metadataRequest);
       const saved = store.saveReferences(targetPaperId, refs);
       return { paperId: targetPaperId, fetched: saved.length, skipped: false, references: saved };
     },
@@ -858,7 +891,7 @@ function createLibraryCommands(context) {
         }
 
         try {
-          const refs = await fetchCrossrefReferences(paper.doi, paper.id);
+          const refs = await fetchCrossrefReferences(paper.doi, paper.id, metadataRequest);
           store.saveReferences(paper.id, refs);
           fetched += 1;
         } catch (error) {
@@ -895,12 +928,22 @@ function createLibraryCommands(context) {
       const title = cleanString(request?.title);
       if (!doi && !title) return null;
 
-      const [openAlexResult, crossrefResult] = await Promise.all([
-        lookupOpenAlexMetadata({ doi, title, settings: library.settings }).catch(() => null),
-        lookupCrossrefMetadata({ doi, title }).catch(() => null),
-      ]);
-
-      return mergeMetadataResults(openAlexResult, crossrefResult);
+      const crossref = await lookupCrossrefMetadata({ doi, title, json: metadataRequest }).catch(error => { if (error.status === 404) return null; throw error; });
+      if (crossref) {
+        // An exact registry DOI must also belong to this PDF, not a referenced paper.
+        const evidence = cleanString(request?.firstPageText);
+        const localTitle = cleanString(request?.evidenceTitle || title);
+        const normalizedEvidence = normalizeTitleForMatching(evidence);
+        const normalizedTitle = normalizeTitleForMatching(crossref.title);
+        if (doi && evidence && localTitle && titleTokens(localTitle).length >= 4 && titleSimilarity(localTitle, crossref.title) < 0.5 && !normalizedEvidence.includes(normalizedTitle)) return null;
+        return crossref;
+      }
+      // Existing optional OpenAlex integration is only a fallback, never another mandatory call.
+      if (library.settings.openAlexEnabled) {
+        const result = await lookupOpenAlexMetadata({ doi, title, settings: library.settings, json: metadataRequest });
+        if (result && (doi ? normalizeDoi(result.doi) === doi : titleSimilarity(title, result.title) >= 0.96)) return { ...result, verified: true, matchedBy: doi ? 'doi' : 'title' };
+      }
+      return null;
     },
   };
 

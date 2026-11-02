@@ -1,6 +1,9 @@
 export type LibraryImportMode = 'copy' | 'move' | 'keep';
 
+export interface MetadataLayout { hiddenFields: string[]; customFields: Array<{ id: string; label: string }>; }
+
 export interface LibrarySettings {
+  metadataLayout?: MetadataLayout;
   storageDir: string;
   zoteroLocalDataDir: string;
   importMode: LibraryImportMode;
@@ -57,6 +60,7 @@ export interface LiteratureAttachment {
 }
 
 export interface LiteraturePaper {
+  customFields?: Record<string, string>;
   id: string;
   title: string;
   year: string | null;
@@ -203,6 +207,8 @@ export interface AssignPaperCategoryRequest {
 }
 
 export interface UpdatePaperRequest {
+  metadataLayout?: MetadataLayout;
+  customFields?: Record<string, string>;
   paperId: string;
   title?: string | null;
   year?: string | null;

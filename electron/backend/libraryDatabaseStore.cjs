@@ -140,7 +140,7 @@ function createSchema(db) {
 
   // Additive migration keeps existing papers, attachments, annotations and notes intact.
   const paperColumns = new Set(db.prepare('PRAGMA table_info(papers)').all().map(column => column.name));
-  for (const [column, type] of [['volume', 'TEXT'], ['issue', 'TEXT'], ['pages', 'TEXT'], ['published_date', 'TEXT'], ['impact_factor', 'REAL']]) {
+  for (const [column, type] of [['volume', 'TEXT'], ['issue', 'TEXT'], ['pages', 'TEXT'], ['published_date', 'TEXT'], ['impact_factor', 'REAL'], ['custom_fields', 'TEXT']]) {
     if (!paperColumns.has(column)) db.exec(`ALTER TABLE papers ADD COLUMN ${column} ${type}`);
   }
 
@@ -324,6 +324,7 @@ function loadLibraryFromDb(db, appPaths, normalizeLibrary) {
       pages,
       published_date AS publishedDate,
       impact_factor AS impactFactor,
+      custom_fields AS customFields,
       doi,
       url,
       abstract_text AS abstractText,
@@ -341,6 +342,7 @@ function loadLibraryFromDb(db, appPaths, normalizeLibrary) {
     ORDER BY sort_order, title
   `).all().map((paper) => ({
     ...paper,
+    customFields: parseJsonValue(paper.customFields, {}) || {},
     isFavorite: Boolean(paper.isFavorite),
     keywords: (keywordRows.get(paper.id) ?? []).map((row) => row.keyword),
     authors: (authorRows.get(paper.id) ?? []).map(({ paper_id: _paperId, ...author }) => author),
@@ -556,9 +558,10 @@ function saveLibraryToDb(db, appPaths, normalizeLibrary, library) {
         ai_summary,
         citation,
         source,
-        sort_order
+        sort_order,
+        custom_fields
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertKeyword = db.prepare(`
       INSERT INTO paper_keywords (paper_id, keyword, sort_order)
@@ -631,6 +634,7 @@ function saveLibraryToDb(db, appPaths, normalizeLibrary, library) {
         paper.citation ?? null,
         paper.source || 'local',
         Number(paper.sortOrder) || 0,
+        JSON.stringify(paper.customFields || {}),
       );
 
       (paper.keywords ?? []).forEach((keyword, index) => {

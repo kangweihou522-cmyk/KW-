@@ -3,7 +3,7 @@ import { BookOpenText, Clock3, FileText, FolderOpen, Languages, Loader2, Papercl
 import { useLocaleText } from '../../../i18n/uiLanguage';
 import { useWheelScrollDelegate } from '../../../hooks/useWheelScrollDelegate';
 import { invoke } from '../../../platform/electron/core';
-import type { LiteraturePaper, LiteraturePaperTaskState, UpdatePaperRequest } from '../../../types/library';
+import type { LiteraturePaper, LiteraturePaperTaskState, UpdatePaperRequest, MetadataLayout } from '../../../types/library';
 import type { PdfReadingHeatmap } from '../../../types/reader';
 import { loadPaperHistory, PAPER_READING_HEATMAP_UPDATED_EVENT } from '../../../utils/paperHistory';
 import { formatReadingDuration } from '../../pdf/pdfReadingHeatmap';
@@ -18,6 +18,7 @@ import { PaperAiOverview } from './PaperAiOverview';
 
 interface LiteraturePaperDetailsProps {
   selectedPaper: LiteraturePaper | null;
+  metadataLayout?: MetadataLayout;
   saving: boolean;
   onOpenPaper: (paper: LiteraturePaper) => void;
   onSavePaper: (request: UpdatePaperRequest) => Promise<boolean>;
@@ -32,7 +33,7 @@ function latestReadingHeatmap(paperId?: string): PdfReadingHeatmap | null {
     .filter(heatmap => heatmap.totalMs > 0).sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
 }
 
-export default function LiteraturePaperDetails({ selectedPaper, saving, onOpenPaper, onSavePaper, actionState, onRunMineruParse, onTranslatePaper, onGenerateSummary }: LiteraturePaperDetailsProps) {
+export default function LiteraturePaperDetails({ selectedPaper, saving, onOpenPaper, onSavePaper, metadataLayout, actionState, onRunMineruParse, onTranslatePaper, onGenerateSummary }: LiteraturePaperDetailsProps) {
   const l = useLocaleText();
   const rootRef = useRef<HTMLElement | null>(null);
   const handleWheelCapture = useWheelScrollDelegate({ rootRef });
@@ -58,7 +59,7 @@ export default function LiteraturePaperDetails({ selectedPaper, saving, onOpenPa
       <button type="button" title={l('文档处理', 'Document processing')} aria-label={l('文档处理', 'Document processing')} aria-expanded={menu?.kind === 'pipeline'} onClick={event => toggle('pipeline', event.currentTarget)} className="pq-icon-button h-8 w-8"><FileText className="h-4 w-4" /></button>
       <button type="button" title={l('打开 PDF 所在文件夹', 'Show PDF in folder')} aria-label={l('打开 PDF 所在文件夹', 'Show PDF in folder')} disabled={!hasPdf} onClick={() => { setError(''); void invoke('library_reveal_pdf', { paperId: selectedPaper.id }).catch(e => setError(String(e))); }} className="pq-icon-button h-8 w-8"><FolderOpen className="h-4 w-4" /></button>
       <button type="button" title={l('补充材料', 'Supplementary materials')} aria-label={l('补充材料', 'Supplementary materials')} aria-expanded={menu?.kind === 'resources'} onClick={event => toggle('resources', event.currentTarget)} className="pq-icon-button h-8 w-8"><Paperclip className="h-4 w-4" /></button>
-      <PaperMetadataEditor paper={selectedPaper} saving={saving} onSave={onSavePaper} />
+      <PaperMetadataEditor metadataLayout={metadataLayout} paper={selectedPaper} saving={saving} onSave={onSavePaper} />
       <button type="button" title={l('查看阅读时间', 'View reading time')} aria-label={l('查看阅读时间', 'View reading time')} aria-expanded={menu?.kind === 'reading'} onClick={event => toggle('reading', event.currentTarget)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] text-[var(--pq-text-muted)] hover:bg-[var(--pq-accent-soft)]"><Clock3 className="h-3.5 w-3.5" />{formatReadingDuration(heatmap?.totalMs ?? 0)}</button>
       {menu && <LibraryPopover anchor={menu.anchor} label={menu.kind === 'pipeline' ? l('文档处理', 'Document processing') : menu.kind === 'reading' ? l('阅读时间', 'Reading time') : l('补充材料', 'Supplementary materials')} onClose={() => setMenu(null)} width={320}>
         {menu.kind === 'pipeline' ? <div className="space-y-1">{actions.map(action => <button key={action.kind} type="button" data-tour={action.tour} disabled={isPaperPipelineActionDisabled({ hasPdf, hasHandler: !!action.handler, actionState })} onClick={() => { action.handler?.(selectedPaper); setMenu(null); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs hover:bg-[var(--pq-accent-soft)] disabled:opacity-40"><action.icon className="h-4 w-4 text-[var(--pq-accent)]" />{action.label}</button>)}</div> : menu.kind === 'reading' ? <LiteratureReadingTimeChart heatmap={heatmap} /> : <PaperLocalResources key={selectedPaper.id} paper={selectedPaper} />}

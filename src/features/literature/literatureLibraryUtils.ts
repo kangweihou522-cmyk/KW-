@@ -159,7 +159,7 @@ export function splitAuthors(value: string): string[] {
 export function metadataFromDraft(draft: ImportDraftItem): ImportPdfMetadata {
   return {
     title: draft.title.trim() || titleFromPdfPath(draft.path),
-    authors: splitAuthors(draft.authors),
+    authors: draft.resolvedAuthors && !draft.manualFields?.includes('authors') ? draft.resolvedAuthors : splitAuthors(draft.authors),
     year: draft.year.trim() || null,
     publication: draft.publication.trim() || null,
     volume: draft.volume || null,
@@ -387,7 +387,7 @@ export function metadataUpdateForPaper(
     }
 
     if (
-      key === 'title' &&
+      !metadata.verified && key === 'title' &&
       currentValue?.trim() &&
       (!pdfPath || !canAutoReplaceTitle(currentValue, pdfPath))
     ) {
@@ -402,7 +402,7 @@ export function metadataUpdateForPaper(
   assignString('year', paper.year, metadata.year);
   assignString('publication', paper.publication, metadata.publication);
   for (const key of ['volume', 'issue', 'pages', 'publishedDate'] as const) {
-    if (!paper[key]) assignString(key, paper[key] || null, metadata[key]);
+    if (metadata.verified || !paper[key]) assignString(key, paper[key] || null, metadata[key]);
   }
   assignString('doi', paper.doi, metadata.doi);
   assignString('url', paper.url, metadata.url);

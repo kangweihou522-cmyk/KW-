@@ -90,8 +90,10 @@ export function mergeLocalPdfMetadataIntoDraft(
 ): ImportDraftItem {
   const nextAuthors = normalizeAuthors(metadata.authors);
 
-  return {
+  const next = {
     ...draft,
+    firstPageText: metadata.firstPageText || '',
+    evidenceTitle: metadata.title,
     title: selectTitle(draft.title, draft.path, metadata.title),
     authors: draft.authors.trim() || nextAuthors || draft.authors,
     year: draft.year.trim() || normalizeWhitespace(metadata.year ?? '') || draft.year,
@@ -101,6 +103,8 @@ export function mergeLocalPdfMetadataIntoDraft(
       draft.publication,
     doi: draft.doi.trim() || normalizeWhitespace(metadata.doi ?? '') || draft.doi,
   };
+  for (const key of draft.manualFields || []) if (key in draft) Object.assign(next, { [key]: draft[key as keyof ImportDraftItem] });
+  return next;
 }
 
 export function mergeRemoteMetadataIntoDraft(
@@ -108,6 +112,16 @@ export function mergeRemoteMetadataIntoDraft(
   metadata: MetadataLookupResult,
 ): ImportDraftItem {
   const nextAuthors = normalizeAuthors(metadata.authors);
+  if (metadata.verified) {
+    const next = { ...draft };
+    const manual = new Set(draft.manualFields || []);
+    for (const key of ['title', 'year', 'publication', 'volume', 'issue', 'pages', 'publishedDate', 'doi'] as const) {
+      if (!manual.has(key) && metadata[key]?.trim()) next[key] = metadata[key]!.trim();
+    }
+    if (!manual.has('authors') && metadata.authors.length) { next.authors = metadata.authors.join('; '); next.resolvedAuthors = metadata.authors; }
+    return next;
+  }
+
 
   return {
     ...draft,

@@ -2,6 +2,8 @@ export interface MetadataLookupRequest {
   doi?: string | null;
   title?: string | null;
   path?: string | null;
+  firstPageText?: string | null;
+  evidenceTitle?: string | null;
 }
 
 export interface MetadataLookupResult {
@@ -9,6 +11,8 @@ export interface MetadataLookupResult {
   issue?: string | null;
   pages?: string | null;
   publishedDate?: string | null;
+  verified?: boolean;
+  matchedBy?: 'doi' | 'title';
   source: string;
   doi: string | null;
   title: string | null;
