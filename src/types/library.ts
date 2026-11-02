@@ -61,6 +61,11 @@ export interface LiteraturePaper {
   title: string;
   year: string | null;
   publication: string | null;
+  volume?: string | null;
+  issue?: string | null;
+  pages?: string | null;
+  publishedDate?: string | null;
+  impactFactor?: number | null;
   doi: string | null;
   url: string | null;
   abstractText: string | null;
@@ -159,6 +164,11 @@ export interface ImportPdfMetadata {
   title?: string | null;
   year?: string | null;
   publication?: string | null;
+  volume?: string | null;
+  issue?: string | null;
+  pages?: string | null;
+  publishedDate?: string | null;
+  impactFactor?: number | null;
   doi?: string | null;
   url?: string | null;
   abstractText?: string | null;
@@ -197,6 +207,11 @@ export interface UpdatePaperRequest {
   title?: string | null;
   year?: string | null;
   publication?: string | null;
+  volume?: string | null;
+  issue?: string | null;
+  pages?: string | null;
+  publishedDate?: string | null;
+  impactFactor?: number | null;
   doi?: string | null;
   url?: string | null;
   abstractText?: string | null;

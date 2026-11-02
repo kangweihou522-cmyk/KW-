@@ -52,6 +52,8 @@ function parseEndNoteXml(input) {
       authors: texts(record, 'author'),
       year: yearFrom(firstText(record, 'year', 'date')),
       publication: nullable(firstText(record, 'secondary-title', 'full-title', 'periodical')),
+      volume: nullable(firstText(record, 'volume')), issue: nullable(firstText(record, 'number', 'issue')),
+      pages: nullable(firstText(record, 'pages')), publishedDate: nullable(firstText(record, 'date')),
       doi: nullable(normalizeDoi(firstText(record, 'electronic-resource-num', 'doi'))),
       url: nullable(texts(record, 'url').find((url) => /^https?:\/\//i.test(url))),
       abstractText: nullable(firstText(record, 'abstract')),
@@ -85,6 +87,9 @@ function parseRis(input) {
         title: title.trim(), authors: [...(fields.AU ?? []), ...(fields.A1 ?? [])],
         year: yearFrom(fields.PY?.[0] || fields.Y1?.[0] || ''),
         publication: nullable(fields.JO?.[0] || fields.JF?.[0] || fields.T2?.[0]),
+        volume: nullable(fields.VL?.[0]), issue: nullable(fields.IS?.[0]),
+        pages: nullable([fields.SP?.[0], fields.EP?.[0]].filter(Boolean).join('–')),
+        publishedDate: nullable(fields.DA?.[0] || fields.Y1?.[0]),
         doi: nullable(normalizeDoi(fields.DO?.[0])), url: nullable(fields.UR?.[0]),
         abstractText: nullable(fields.AB?.[0] || fields.N2?.[0]),
         userNote: nullable((fields.N1 ?? []).join('\n\n')),
@@ -108,13 +113,13 @@ function xmlEscape(value) {
 
 function exportEndNoteXml(papers) {
   const tag = (name, value) => value == null || value === '' ? '' : `<${name}>${xmlEscape(value)}</${name}>`;
-  const records = papers.map((paper, index) => `<record>${tag('rec-number', index + 1)}<ref-type name="Journal Article">17</ref-type><contributors><authors>${(paper.authors ?? []).map((author) => tag('author', author.name)).join('')}</authors></contributors><titles>${tag('title', paper.title)}${tag('secondary-title', paper.publication)}</titles><dates>${tag('year', paper.year)}</dates>${tag('electronic-resource-num', paper.doi)}${tag('abstract', paper.abstractText)}${tag('research-notes', paper.userNote)}<keywords>${(paper.keywords ?? []).map((word) => tag('keyword', word)).join('')}</keywords><urls><web-urls>${tag('url', paper.url)}</web-urls><pdf-urls>${(paper.attachments ?? []).filter((attachment) => attachment.kind === 'pdf').map((attachment) => tag('url', attachment.storedPath)).join('')}</pdf-urls></urls></record>`);
+  const records = papers.map((paper, index) => `<record>${tag('rec-number', index + 1)}<ref-type name="Journal Article">17</ref-type><contributors><authors>${(paper.authors ?? []).map((author) => tag('author', author.name)).join('')}</authors></contributors><titles>${tag('title', paper.title)}${tag('secondary-title', paper.publication)}</titles><dates>${tag('year', paper.year)}${tag('date', paper.publishedDate)}</dates>${tag('volume', paper.volume)}${tag('number', paper.issue)}${tag('pages', paper.pages)}${tag('electronic-resource-num', paper.doi)}${tag('abstract', paper.abstractText)}${tag('research-notes', paper.userNote)}<keywords>${(paper.keywords ?? []).map((word) => tag('keyword', word)).join('')}</keywords><urls><web-urls>${tag('url', paper.url)}</web-urls><pdf-urls>${(paper.attachments ?? []).filter((attachment) => attachment.kind === 'pdf').map((attachment) => tag('url', attachment.storedPath)).join('')}</pdf-urls></urls></record>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<xml><records>${records.join('\n')}</records></xml>\n`;
 }
 
 function exportRis(papers) {
   const line = (tag, value) => value == null || value === '' ? '' : `${tag}  - ${String(value).replace(/\r?\n/g, '\n      ')}\n`;
-  return papers.map((paper) => 'TY  - JOUR\n' + line('TI', paper.title) + (paper.authors ?? []).map((author) => line('AU', author.name)).join('') + line('PY', paper.year) + line('JO', paper.publication) + line('DO', paper.doi) + line('UR', paper.url) + line('AB', paper.abstractText) + line('N1', paper.userNote) + (paper.keywords ?? []).map((word) => line('KW', word)).join('') + (paper.attachments ?? []).filter((attachment) => attachment.kind === 'pdf').map((attachment) => line('L1', attachment.storedPath)).join('') + 'ER  - \n').join('\n');
+  return papers.map((paper) => 'TY  - JOUR\n' + line('TI', paper.title) + (paper.authors ?? []).map((author) => line('AU', author.name)).join('') + line('PY', paper.year) + line('JO', paper.publication) + line('VL', paper.volume) + line('IS', paper.issue) + line('SP', paper.pages) + line('DA', paper.publishedDate) + line('DO', paper.doi) + line('UR', paper.url) + line('AB', paper.abstractText) + line('N1', paper.userNote) + (paper.keywords ?? []).map((word) => line('KW', word)).join('') + (paper.attachments ?? []).filter((attachment) => attachment.kind === 'pdf').map((attachment) => line('L1', attachment.storedPath)).join('') + 'ER  - \n').join('\n');
 }
 
 function parseCsv(input) {
@@ -226,6 +231,7 @@ function createReferenceExchangeCommands({ store, appPaths, shell: suppliedShell
         const timestamp = now();
         const paper = {
           id: id('paper'), title: record.title, year: record.year, publication: record.publication,
+          volume: record.volume, issue: record.issue, pages: record.pages, publishedDate: record.publishedDate, impactFactor: null,
           doi: record.doi, url: record.url, abstractText: record.abstractText,
           userNote: record.userNote, keywords: record.keywords,
           importedAt: timestamp, updatedAt: timestamp, lastReadAt: null,

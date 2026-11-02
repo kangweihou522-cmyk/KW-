@@ -111,6 +111,10 @@ export function mergeRemoteMetadataIntoDraft(
 
   return {
     ...draft,
+    volume: draft.volume || metadata.volume || null,
+    issue: draft.issue || metadata.issue || null,
+    pages: draft.pages || metadata.pages || null,
+    publishedDate: draft.publishedDate || metadata.publishedDate || null,
     title: selectTitle(draft.title, draft.path, metadata.title),
     authors: draft.authors.trim() || nextAuthors || draft.authors,
     year: draft.year.trim() || normalizeWhitespace(metadata.year ?? '') || draft.year,

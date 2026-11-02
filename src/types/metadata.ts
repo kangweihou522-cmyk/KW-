@@ -5,6 +5,10 @@ export interface MetadataLookupRequest {
 }
 
 export interface MetadataLookupResult {
+  volume?: string | null;
+  issue?: string | null;
+  pages?: string | null;
+  publishedDate?: string | null;
   source: string;
   doi: string | null;
   title: string | null;

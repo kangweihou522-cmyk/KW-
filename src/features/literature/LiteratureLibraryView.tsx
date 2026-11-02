@@ -2,6 +2,7 @@ import { invoke } from '../../platform/electron/core';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -97,6 +98,7 @@ import {
   hasMineruOutputForPaper,
   loadCategorySidebarWidth,
   loadDetailsPanelWidth,
+  resolveLibraryColumns,
   markPaperStatusesCheckingMineru,
   metadataFromDraft,
   metadataFromZoteroItem,
@@ -279,6 +281,16 @@ export default function LiteratureLibraryView({
   const [categorySidebarResizing, setCategorySidebarResizing] = useState(false);
   const [detailsPanelWidth, setDetailsPanelWidth] = useState(loadDetailsPanelWidth);
   const [detailsPanelResizing, setDetailsPanelResizing] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(1380);
+  const { category: effectiveCategoryWidth, details: effectiveDetailsWidth } = resolveLibraryColumns(availableWidth, categorySidebarWidth, detailsPanelWidth);
+  useLayoutEffect(() => {
+    const element = workspaceRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setAvailableWidth(element.clientWidth));
+    setAvailableWidth(element.clientWidth); observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const categorySidebarResizeStartRef = useRef({
     clientX: 0,
     width: CATEGORY_SIDEBAR_DEFAULT_WIDTH,
@@ -616,7 +628,7 @@ export default function LiteratureLibraryView({
     }
     categorySidebarResizeStartRef.current = {
       clientX: event.clientX,
-      width: categorySidebarWidth,
+      width: effectiveCategoryWidth,
     };
     setCategorySidebarResizing(true);
   };
@@ -629,7 +641,7 @@ export default function LiteratureLibraryView({
     }
     detailsPanelResizeStartRef.current = {
       clientX: event.clientX,
-      width: detailsPanelWidth,
+      width: effectiveDetailsWidth,
     };
     setDetailsPanelResizing(true);
   };
@@ -1575,7 +1587,7 @@ export default function LiteratureLibraryView({
   const handleSavePaper = async (request: UpdatePaperRequest) => {
     if (demoMode) {
       showDemoLockedMessage();
-      return;
+      return false;
     }
 
     setPaperSaving(true);
@@ -1585,11 +1597,13 @@ export default function LiteratureLibraryView({
       const updatedPaper = await updateLibraryPaper(request);
       await reloadAfterPaperUpdate(updatedPaper);
       setStatusMessage(l('文献信息已保存', 'Paper metadata saved'));
+      return true;
     } catch (nextError) {
       const message =
         nextError instanceof Error ? nextError.message : l('保存文献信息失败', 'Failed to save paper metadata');
       setError(message);
       setStatusMessage(message);
+      return false;
     } finally {
       setPaperSaving(false);
     }
@@ -1984,9 +1998,10 @@ export default function LiteratureLibraryView({
 
   return (
     <div
+      ref={workspaceRef}
       className="pq-saas-scope pq-library-workspace pq-workspace-surface relative grid h-full min-h-0 overflow-hidden text-[var(--pq-text)]"
       style={{
-        gridTemplateColumns: `${categorySidebarWidth}px minmax(360px,1fr) ${detailsPanelWidth}px`,
+        gridTemplateColumns: `${effectiveCategoryWidth}px minmax(0,1fr) ${effectiveDetailsWidth}px`,
         gridTemplateRows: 'minmax(0, 1fr)',
       }}
     >
@@ -2009,6 +2024,8 @@ export default function LiteratureLibraryView({
           loading={loading}
           working={working}
           papers={papers}
+          saving={paperSaving}
+          onSavePaper={handleSavePaper}
           paperStatuses={paperStatuses}
           showReadingHeatmap={showReadingHeatmap}
           storageDir={libraryStorageDir}
@@ -2046,7 +2063,7 @@ export default function LiteratureLibraryView({
           categorySidebarResizing ? 'bg-teal-400/10' : 'bg-transparent hover:bg-teal-400/[0.04]',
         ].join(' ')}
         style={{
-          left: categorySidebarWidth,
+          left: effectiveCategoryWidth,
           touchAction: 'none',
         }}
       >
@@ -2065,7 +2082,7 @@ export default function LiteratureLibraryView({
           selectedPaper={selectedPaper}
           saving={paperSaving}
           onOpenPaper={onOpenPaper}
-          onSavePaper={(request) => void handleSavePaper(request)}
+          onSavePaper={handleSavePaper}
           actionState={selectedPaper ? paperActionStates[selectedPaper.id] ?? null : null}
           onRunMineruParse={onRunMineruParse}
           onTranslatePaper={onTranslatePaper}
@@ -2085,7 +2102,7 @@ export default function LiteratureLibraryView({
           detailsPanelResizing ? 'bg-teal-400/10' : 'bg-transparent hover:bg-teal-400/[0.04]',
         ].join(' ')}
         style={{
-          right: detailsPanelWidth - 1,
+          right: effectiveDetailsWidth - 1,
           touchAction: 'none',
         }}
       >

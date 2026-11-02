@@ -1,7 +1,6 @@
 import clsx from 'clsx';
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -14,23 +13,18 @@ import {
   FilePlus2,
   GripVertical,
   RefreshCw,
+  CheckCircle2,
+  Sparkles,
   Search,
   Star,
 } from 'lucide-react';
 import { useAppLocale, useLocaleText } from '../../../i18n/uiLanguage';
 import { useWheelScrollDelegate } from '../../../hooks/useWheelScrollDelegate';
 import type { ListPapersRequest, LiteraturePaper } from '../../../types/library';
-import type { PdfReadingHeatmap } from '../../../types/reader';
-import {
-  loadPaperHistoryMap,
-  PAPER_READING_HEATMAP_UPDATED_EVENT,
-} from '../../../utils/paperHistory';
-import { truncateMiddle } from '../../../utils/text';
-import {
-  paperAuthors,
-  paperPdfPath,
-} from '../literatureUi';
-import LiteratureReadingHeatmapPreview from './LiteratureReadingHeatmapPreview';
+import { paperAuthors } from '../literatureUi';
+import { PaperTags } from './PaperTags';
+import { PaperImpactFactor, PaperMetadataEditor } from './PaperMetadataEditor';
+import type { UpdatePaperRequest } from '../../../types/library';
 
 export interface LiteraturePaperListStatus {
   mineruParsed: boolean;
@@ -54,6 +48,8 @@ interface LiteraturePaperListProps {
   sortDirection: LiteraturePaperListSortDirection;
   statusMessage: string;
   error: string;
+  saving: boolean;
+  onSavePaper: (request: UpdatePaperRequest) => Promise<boolean>;
   onSearchQueryChange: (value: string) => void;
   onSortChange: (sortBy: LiteraturePaperListSortBy, sortDirection: LiteraturePaperListSortDirection) => void;
   onImportPdfs: () => void;
@@ -82,8 +78,8 @@ export default function LiteraturePaperList({
   working,
   papers,
   paperStatuses,
-  showReadingHeatmap = true,
-  storageDir = '',
+  saving,
+  onSavePaper,
   selectedPaper,
   searchQuery,
   sortBy,
@@ -127,44 +123,12 @@ export default function LiteraturePaperList({
   const [sortDraggingPaperId, setSortDraggingPaperId] = useState<string | null>(null);
   const [categoryDraggingPaperId, setCategoryDraggingPaperId] = useState<string | null>(null);
   const [suppressClickPaperId, setSuppressClickPaperId] = useState<string | null>(null);
-  const [heatmapRevision, setHeatmapRevision] = useState(0);
+  const [tagFilter, setTagFilter] = useState('');
   const manualSortingEnabled = sortBy === 'manual';
   const sortValue = `${sortBy}:${sortDirection}`;
-  const heatmapsByPaperId = useMemo(() => {
-    if (!showReadingHeatmap || papers.length === 0) {
-      return {} as Record<string, PdfReadingHeatmap | null>;
-    }
-
-    const historyMap = loadPaperHistoryMap();
-    const nextHeatmaps: Record<string, PdfReadingHeatmap | null> = {};
-
-    for (const paper of papers) {
-      const history = historyMap[`native-library:${paper.id}`];
-      const latestHeatmap = Object.values(history?.pdfReadingHeatmaps ?? {})
-        .filter((heatmap) => heatmap.totalMs > 0)
-        .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
-
-      nextHeatmaps[paper.id] = latestHeatmap;
-    }
-
-    return nextHeatmaps;
-  }, [heatmapRevision, papers, showReadingHeatmap]);
-
-  useEffect(() => {
-    if (!showReadingHeatmap) {
-      return undefined;
-    }
-
-    const handleHeatmapUpdated = () => {
-      setHeatmapRevision((current) => current + 1);
-    };
-
-    window.addEventListener(PAPER_READING_HEATMAP_UPDATED_EVENT, handleHeatmapUpdated);
-
-    return () => {
-      window.removeEventListener(PAPER_READING_HEATMAP_UPDATED_EVENT, handleHeatmapUpdated);
-    };
-  }, [showReadingHeatmap]);
+  const tags = [...new Set(papers.flatMap(paper => paper.tags.map(tag => tag.name)))].sort((a, b) => a.localeCompare(b));
+  const visiblePapers = tagFilter ? papers.filter(paper => paper.tags.some(tag => tag.name === tagFilter)) : papers;
+  useEffect(() => { if (tagFilter && !tags.includes(tagFilter)) setTagFilter(''); }, [tagFilter, tags.join('\0')]);
 
   const findPointerDropTarget = (
     clientX: number,
@@ -403,6 +367,7 @@ export default function LiteraturePaperList({
     event: KeyboardEvent<HTMLDivElement>,
     paper: LiteraturePaper,
   ) => {
+    if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter') {
       onOpenPaper(paper);
       return;
@@ -421,13 +386,14 @@ export default function LiteraturePaperList({
       className="pq-library-pane flex h-full min-h-0 flex-col overflow-hidden border-r"
     >
       <header className="pq-toolbar px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[260px] flex-1">
+        <div className="mb-3 flex items-baseline gap-2"><h2 className="text-lg font-semibold">{l('我的文献', 'My papers')}</h2><span className="text-xs text-[var(--pq-text-muted)]">{l(`${visiblePapers.length} 篇`, `${visiblePapers.length} papers`)}</span></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.8} />
             <input
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder={l('搜索标题、作者、摘要、DOI...', 'Search title, author, abstract, DOI...')}
+              placeholder={l('搜索标题、作者、期刊、DOI…', 'Search title, author, abstract, DOI...')}
               className="pq-input h-9 w-full pl-9 pr-3 text-sm placeholder:text-[var(--pq-text-faint)]"
             />
           </div>
@@ -442,7 +408,7 @@ export default function LiteraturePaperList({
 
               onSortChange(nextSortBy, nextDirection);
             }}
-            className="pq-input h-9 w-[168px] px-3 text-sm"
+            className="pq-input h-9 w-[126px] px-3 text-sm"
             title={l('排序', 'Sort')}
           >
             <option value="manual:asc">{l('手动排序', 'Manual Order')}</option>
@@ -456,6 +422,7 @@ export default function LiteraturePaperList({
             <option value="author:asc">{l('作者 A-Z', 'Author A-Z')}</option>
           </select>
 
+          <select aria-label={l('按标签筛选', 'Filter by tag')} value={tagFilter} onChange={event => { const tag = event.target.value; setTagFilter(tag); const first = papers.find(paper => !tag || paper.tags.some(value => value.name === tag)); if (first) onSelectPaper(first.id); }} className="pq-input h-9 max-w-[140px] px-2 text-xs"><option value="">{l('全部标签', 'All tags')}</option>{tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
           <button
             type="button"
             onClick={onImportPdfs}
@@ -470,20 +437,15 @@ export default function LiteraturePaperList({
             type="button"
             onClick={onRefresh}
             disabled={working}
-            className="pq-button h-9 px-3 text-sm"
+            title={l('刷新', 'Refresh')}
+            aria-label={l('刷新', 'Refresh')}
+            className="pq-icon-button h-9 w-9"
           >
-            <RefreshCw className="mr-2 h-4 w-4" strokeWidth={1.9} />
-            {l('刷新', 'Refresh')}
+            <RefreshCw className="h-4 w-4" strokeWidth={1.9} />
           </button>
         </div>
 
-        <div className="mt-2 text-xs text-[var(--pq-text-muted)]">
-          {error ||
-            statusMessage ||
-            (manualSortingEnabled
-              ? l('拖动把手可调整排序；拖动条目到分类可归类。', 'Drag the handle to reorder papers; drag the row onto a category to classify it.')
-              : l('当前使用自动排序；拖动条目到分类仍可归类。', 'Automatic sorting is active. Dragging a row onto a category still classifies it.'))}
-        </div>
+        {error ? <p role="alert" className="mt-2 text-xs text-rose-600">{error}</p> : statusMessage ? <p role="status" className={[l('文献信息已保存', 'Paper metadata saved'), l('文献库已就绪', 'Library is ready')].includes(statusMessage) ? 'sr-only' : 'mt-2 text-[11px] text-[var(--pq-text-muted)]'}>{statusMessage}</p> : null}
       </header>
 
       <div
@@ -494,11 +456,11 @@ export default function LiteraturePaperList({
           <div className="pq-card p-6 text-sm text-[var(--pq-text-muted)]">
             {l('正在加载文献库...', 'Loading library...')}
           </div>
-        ) : papers.length === 0 ? (
+        ) : visiblePapers.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--pq-border)] bg-white/58 p-8 text-center dark:bg-white/5">
             <BookOpenText className="mx-auto h-9 w-9 text-slate-400 dark:text-[#a0a0a0]" strokeWidth={1.7} />
             <div className="mt-4 text-lg font-semibold">
-              {l('还没有文献', 'No papers yet')}
+              {tagFilter ? l('此标签下暂无文献', 'No papers with this tag') : l('还没有文献', 'No papers yet')}
             </div>
             <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-[#a0a0a0]">
               {l(
@@ -509,9 +471,8 @@ export default function LiteraturePaperList({
           </div>
         ) : (
           <div className="space-y-2">
-            {papers.map((paper) => {
+            {visiblePapers.map((paper) => {
               const active = selectedPaper?.id === paper.id;
-              const pdfPath = paperPdfPath(paper, storageDir);
               const showBeforeIndicator =
                 dropIndicator?.paperId === paper.id && dropIndicator.placement === 'before';
               const showAfterIndicator =
@@ -530,6 +491,7 @@ export default function LiteraturePaperList({
                     role="button"
                     tabIndex={0}
                     data-paper-row-id={paper.id}
+                    data-selected={active}
                     draggable={false}
                     onPointerDown={(event) => handleCategoryPointerDown(event, paper)}
                     onPointerMove={handleCategoryPointerMove}
@@ -557,11 +519,8 @@ export default function LiteraturePaperList({
                     onDoubleClick={() => onOpenPaper(paper)}
                     onKeyDown={(event) => handleRowKeyDown(event, paper)}
                     className={clsx(
-                      'pq-card grid w-full gap-3 px-3 py-3 text-left transition',
+                      'pq-card grid w-full grid-cols-[22px_minmax(0,1fr)] gap-2 px-3 py-3 text-left transition',
                       manualSortingEnabled ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-                      showReadingHeatmap
-                        ? 'grid-cols-[28px_minmax(0,1fr)_minmax(128px,160px)_72px_96px] max-[900px]:grid-cols-[28px_minmax(0,1fr)_64px_86px]'
-                        : 'grid-cols-[28px_minmax(0,1fr)_100px_110px]',
                       active
                         ? 'border-[var(--pq-accent-border-strong)] bg-[var(--pq-accent-soft)] ring-1 ring-[var(--pq-accent-ring)]'
                         : dropIndicator?.paperId === paper.id
@@ -592,82 +551,29 @@ export default function LiteraturePaperList({
                     >
                       <GripVertical className="h-4 w-4" strokeWidth={1.8} />
                     </span>
-                    <span className="min-w-0">
-                      <span className="flex min-w-0 items-center gap-2">
-                        {paper.isFavorite ? (
-                          <Star className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-200" fill="currentColor" strokeWidth={1.8} />
-                        ) : null}
-                        <span className="block truncate text-sm font-semibold">
-                          {paper.title}
-                        </span>
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-slate-500 dark:text-[#a0a0a0]">
-                        {paperAuthors(paper, locale)}
-                      </span>
-                      <span className="mt-2 flex flex-wrap gap-1.5">
-                        <span
-                          className={clsx(
-                            'rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-                            status?.checkingMineru
-                              ? 'border-slate-300 bg-slate-100 text-slate-500 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#a0a0a0]'
-                              : mineruParsed
-                                ? 'border-emerald-300/55 bg-emerald-50 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/10 dark:text-emerald-100'
-                                : 'border-amber-300/55 bg-amber-50 text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/10 dark:text-amber-100',
-                          )}
-                        >
-                          {status?.checkingMineru
-                            ? l('正在检查本地解析', 'Checking local parsing')
-                            : mineruParsed
-                              ? l('已完成本地解析', 'Locally parsed')
-                              : l('等待本地解析', 'Awaiting local parsing')}
-                        </span>
-                        <span
-                          className={clsx(
-                            'rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-                            overviewGenerated
-                              ? 'border-sky-300/55 bg-sky-50 text-sky-700 dark:border-sky-300/20 dark:bg-sky-300/10 dark:text-sky-100'
-                              : 'border-slate-300 bg-slate-100 text-slate-500 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#a0a0a0]',
-                          )}
-                        >
-                          {overviewGenerated
-                            ? l('概览已生成', 'Overview Ready')
-                            : l('概览未生成', 'No Overview')}
-                        </span>
-                      </span>
-                      {paper.tags.length > 0 ? (
-                        <span className="mt-2 flex flex-wrap gap-1.5">
-                          {paper.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag.id}
-                              className="rounded-full border border-cyan-300/45 bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-700 dark:border-cyan-300/18 dark:bg-cyan-300/10 dark:text-cyan-100"
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
-                          {paper.tags.length > 3 ? (
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-white/[0.06] dark:text-[#a0a0a0]">
-                              +{paper.tags.length - 3}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : null}
-                      <span className="mt-2 block truncate text-[11px] text-slate-400 dark:text-[#8d8d8d]">
-                        {pdfPath ? truncateMiddle(pdfPath, 68) : l('缺少 PDF 附件', 'Missing PDF attachment')}
-                      </span>
-                    </span>
-                    {showReadingHeatmap ? (
-                      <span className="min-w-0 self-center max-[900px]:hidden">
-                        <LiteratureReadingHeatmapPreview
-                          heatmap={heatmapsByPaperId[paper.id] ?? null}
-                        />
-                      </span>
-                    ) : null}
-                    <span className="text-sm text-slate-500 dark:text-[#a0a0a0]">
-                      {paper.year ?? 'n.d.'}
-                    </span>
-                    <span className="text-right text-xs text-slate-400 dark:text-[#8d8d8d]">
-                      {new Date(paper.importedAt).toLocaleDateString()}
-                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="min-w-0 text-sm font-semibold leading-6">{paper.title}</h3>
+                        <div className="shrink-0 text-right">
+                          <time dateTime={new Date(paper.updatedAt).toISOString()} title={new Date(paper.updatedAt).toLocaleString()} className="text-[10px] text-[var(--pq-text-faint)]">{l('更新于 ', 'Updated ')}{new Date(paper.updatedAt).toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit' })}</time>
+                          <div className="mt-0.5 flex items-center justify-end" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+                            <button type="button" disabled={saving} aria-label={paper.isFavorite ? l('取消收藏', 'Remove from favorites') : l('加入收藏', 'Add to favorites')} title={paper.isFavorite ? l('取消收藏', 'Remove from favorites') : l('加入收藏', 'Add to favorites')} onClick={() => void onSavePaper({ paperId: paper.id, isFavorite: !paper.isFavorite })} className={`pq-icon-button h-7 w-7 ${paper.isFavorite ? 'text-amber-500' : 'text-[var(--pq-text-faint)]'}`}><Star className="h-3.5 w-3.5" fill={paper.isFavorite ? 'currentColor' : 'none'} /></button>
+                            <PaperMetadataEditor paper={paper} saving={saving} onSave={onSavePaper} />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-[var(--pq-text-muted)]" title={paperAuthors(paper, locale)}>{paperAuthors(paper, locale)}</p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-[var(--pq-accent)]">{paper.publication || l('期刊待补充', 'Journal not recorded')}</span><PaperImpactFactor paper={paper} saving={saving} onSave={onSavePaper} /></div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--pq-text-muted)]">
+                        <span>{paper.publishedDate || paper.year || l('年份未知', 'Year unknown')}</span>
+                        {(paper.volume || paper.issue) && <span>{paper.volume}{paper.issue ? `(${paper.issue})` : ''}</span>}
+                        {paper.pages && <span>{paper.pages}</span>}
+                        {paper.doi && <span className="min-w-0 break-all select-text">DOI {paper.doi}</span>}
+                        {mineruParsed && <span title={l('已完成本地解析', 'Locally parsed')}><CheckCircle2 className="h-3 w-3 text-emerald-600" /></span>}
+                        {overviewGenerated && <span title={l('概览已生成', 'Overview ready')}><Sparkles className="h-3 w-3 text-sky-600" /></span>}
+                      </div>
+                      <PaperTags paper={paper} saving={saving} onSave={onSavePaper} />
+                    </div>
                   </div>
                   {showAfterIndicator ? (
                     <div className="pointer-events-none absolute -bottom-1 left-3 right-3 z-10 h-0.5 rounded-full bg-[#2f7f85]" />

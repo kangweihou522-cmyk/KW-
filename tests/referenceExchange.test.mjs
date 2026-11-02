@@ -31,7 +31,7 @@ async function fixture(t) {
 const exampleXml = `<?xml version="1.0" encoding="UTF-8"?><xml><records><record>
   <titles><title>Controls &amp; evidence</title><secondary-title>Journal of Tests</secondary-title></titles>
   <contributors><authors><author>李明</author><author>Smith, Alice</author></authors></contributors>
-  <dates><year>2024</year></dates><electronic-resource-num>https://doi.org/10.1234/TEST</electronic-resource-num>
+  <dates><year>2024</year><date>2024-03-12</date></dates><volume>13</volume><number>2</number><pages>112–124</pages><electronic-resource-num>https://doi.org/10.1234/TEST</electronic-resource-num>
   <abstract>Abstract &lt;without executable HTML&gt;</abstract><research-notes>My appraisal\nSecond line</research-notes>
   <keywords><keyword>control</keyword><keyword>证据</keyword></keywords>
   <urls><web-urls><url>https://example.invalid/paper</url></web-urls></urls>
@@ -58,6 +58,8 @@ test('EndNote XML and RIS preserve metadata and manual notes through the real SQ
     assert.equal(record.userNote, paper.userNote);
     assert.equal(record.doi, paper.doi);
     assert.equal(record.publication, paper.publication);
+    assert.equal(record.volume, '13'); assert.equal(record.issue, '2');
+    assert.equal(record.pages, '112–124'); assert.equal(record.publishedDate, '2024-03-12');
     assert.deepEqual(record.authors, paper.authors.map((author) => author.name));
   }
   assert.equal((await commands.library_import_references({ format: 'ris', content: ris })).skipped, 1);

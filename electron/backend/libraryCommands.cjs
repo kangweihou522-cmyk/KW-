@@ -291,6 +291,10 @@ function mapOpenAlexWork(item) {
       .filter(Boolean),
     year: normalizeYear(item.publication_year ?? item.publication_date),
     publication: cleanString(publication) || null,
+    volume: cleanString(item.biblio?.volume) || null,
+    issue: cleanString(item.biblio?.issue) || null,
+    pages: [item.biblio?.first_page, item.biblio?.last_page].filter(Boolean).join('–') || null,
+    publishedDate: cleanString(item.publication_date) || null,
     url: firstString(item.primary_location?.landing_page_url, item.doi, item.id),
     abstractText: abstractFromOpenAlexInvertedIndex(item.abstract_inverted_index),
   };
@@ -311,6 +315,10 @@ function mapCrossrefWork(item) {
       .filter(Boolean),
     year: normalizeYear(item.issued?.['date-parts']?.[0]?.[0] ?? item.published?.['date-parts']?.[0]?.[0]),
     publication: firstString(item['container-title']),
+    volume: cleanString(item.volume) || null,
+    issue: cleanString(item.issue) || null,
+    pages: firstString(item.page, item['article-number']),
+    publishedDate: (item.published?.['date-parts']?.[0] || item.issued?.['date-parts']?.[0] || []).map((value, index) => String(value).padStart(index ? 2 : 4, '0')).join('-') || null,
     url: firstString(item.URL, doiUrl(item.DOI)),
     abstractText: firstString(item.abstract),
   };
@@ -338,6 +346,7 @@ function mergeMetadataResults(...results) {
     merged.title ||= cleanString(result.title) || null;
     merged.year ||= cleanString(result.year) || null;
     merged.publication ||= cleanString(result.publication) || null;
+    for (const key of ['volume', 'issue', 'pages', 'publishedDate']) merged[key] ||= cleanString(result[key]) || null;
     merged.url ||= cleanString(result.url) || null;
     merged.abstractText ||= cleanString(result.abstractText) || null;
 
@@ -636,6 +645,11 @@ function createLibraryCommands(context) {
             title: cleanString(metadata.title) || path.basename(fileName, path.extname(fileName)),
             year: metadata.year ?? null,
             publication: metadata.publication ?? null,
+            volume: metadata.volume ?? null,
+            issue: metadata.issue ?? null,
+            pages: metadata.pages ?? null,
+            publishedDate: metadata.publishedDate ?? null,
+            impactFactor: null,
             doi: metadata.doi ?? null,
             url: metadata.url ?? null,
             abstractText: metadata.abstractText ?? null,
@@ -705,17 +719,41 @@ function createLibraryCommands(context) {
       return paper;
     },
 
+    async library_list_tags() {
+      const tags = new Map();
+      for (const paper of store.load().papers) {
+        for (const tag of paper.tags || []) {
+          const key = tag.name.toLocaleLowerCase();
+          if (!tags.has(key)) tags.set(key, tag);
+        }
+      }
+      return [...tags.values()].sort((left, right) => left.name.localeCompare(right.name));
+    },
+
     async library_update_paper({ request }) {
       const library = store.load();
       const paper = library.papers.find((item) => item.id === request.paperId);
       if (!paper) throw new Error('Paper does not exist');
 
-      for (const key of ['title', 'year', 'publication', 'doi', 'url', 'abstractText', 'userNote', 'aiSummary', 'citation']) {
+      for (const key of ['title', 'year', 'publication', 'volume', 'issue', 'pages', 'publishedDate', 'doi', 'url', 'abstractText', 'userNote', 'aiSummary', 'citation']) {
         if (request[key] !== undefined) paper[key] = request[key];
+      }
+      if (request.impactFactor !== undefined) {
+        const value = request.impactFactor;
+        if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) throw new Error('影响因子必须为非负数，清空可设为未知。');
+        paper.impactFactor = value;
       }
       if (request.keywords) paper.keywords = request.keywords.map(cleanString).filter(Boolean);
       if (request.authors) paper.authors = request.authors.map(cleanString).filter(Boolean).map(normalizeAuthor);
-      if (request.tags) paper.tags = request.tags.map(cleanString).filter(Boolean).map(normalizeTag);
+      if (request.tags) {
+        const previous = new Map(paper.tags.map(tag => [tag.name.toLocaleLowerCase(), tag]));
+        const unique = new Map();
+        for (const name of request.tags.map(cleanString).filter(Boolean)) {
+          const key = name.toLocaleLowerCase();
+          if (!unique.has(key)) unique.set(key, previous.get(key) || normalizeTag(name));
+        }
+        paper.tags = [...unique.values()];
+      }
       if (request.isFavorite != null) paper.isFavorite = Boolean(request.isFavorite);
       paper.updatedAt = now();
 

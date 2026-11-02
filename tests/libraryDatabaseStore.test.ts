@@ -348,6 +348,13 @@ test('library SQLite store upgrades early author and tag tables with global ids'
     assert.ok(paper);
     assert.equal(paper.authors[0].id, 'author-shared');
     assert.equal(paper.tags[0].id, 'tag-shared');
+    assert.equal(paper.volume, null);
+    assert.equal(paper.impactFactor, null);
+    paper.volume = '7';
+    paper.issue = '3';
+    paper.pages = 'e123';
+    paper.publishedDate = '2026-11';
+    paper.impactFactor = 5.4;
 
     library.papers.push({
       id: 'paper-new',
@@ -387,6 +394,8 @@ test('library SQLite store upgrades early author and tag tables with global ids'
 
     const reloaded = store.load();
     assert.equal(reloaded.papers.length, 2);
+    assert.equal(reloaded.papers.find((item: { id: string }) => item.id === 'paper-old').volume, '7');
+    assert.equal(reloaded.papers.find((item: { id: string }) => item.id === 'paper-old').impactFactor, 5.4);
     assert.deepEqual(
       reloaded.papers.map((paper: { authors: Array<{ id: string }> }) => paper.authors[0]?.id).sort(),
       ['author-shared', 'author-shared'],

@@ -138,6 +138,12 @@ function createSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_paper_references_doi ON paper_references(doi);
   `);
 
+  // Additive migration keeps existing papers, attachments, annotations and notes intact.
+  const paperColumns = new Set(db.prepare('PRAGMA table_info(papers)').all().map(column => column.name));
+  for (const [column, type] of [['volume', 'TEXT'], ['issue', 'TEXT'], ['pages', 'TEXT'], ['published_date', 'TEXT'], ['impact_factor', 'REAL']]) {
+    if (!paperColumns.has(column)) db.exec(`ALTER TABLE papers ADD COLUMN ${column} ${type}`);
+  }
+
   migrateRepeatedIdListTable(db, 'authors', `
     CREATE TABLE authors (
       id TEXT NOT NULL,
@@ -313,6 +319,11 @@ function loadLibraryFromDb(db, appPaths, normalizeLibrary) {
       title,
       year,
       publication,
+      volume,
+      issue,
+      pages,
+      published_date AS publishedDate,
+      impact_factor AS impactFactor,
       doi,
       url,
       abstract_text AS abstractText,
@@ -528,6 +539,11 @@ function saveLibraryToDb(db, appPaths, normalizeLibrary, library) {
         title,
         year,
         publication,
+        volume,
+        issue,
+        pages,
+        published_date,
+        impact_factor,
         doi,
         url,
         abstract_text,
@@ -542,7 +558,7 @@ function saveLibraryToDb(db, appPaths, normalizeLibrary, library) {
         source,
         sort_order
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertKeyword = db.prepare(`
       INSERT INTO paper_keywords (paper_id, keyword, sort_order)
@@ -597,6 +613,11 @@ function saveLibraryToDb(db, appPaths, normalizeLibrary, library) {
         paper.title,
         paper.year ?? null,
         paper.publication ?? null,
+        paper.volume ?? null,
+        paper.issue ?? null,
+        paper.pages ?? null,
+        paper.publishedDate ?? null,
+        paper.impactFactor ?? null,
         paper.doi ?? null,
         paper.url ?? null,
         paper.abstractText ?? null,

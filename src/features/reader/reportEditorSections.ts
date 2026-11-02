@@ -14,5 +14,5 @@ export function splitEditableReport(text: string): EditableReportSection[] {
   return sections;
 }
 export function joinEditableReport(sections: EditableReportSection[]): string {
-  return sections.map((section, index) => `${section.level ? `${'#'.repeat(section.level)} ${section.title}\n` : ''}${section.content}${index < sections.length - 1 && !section.content.endsWith('\n') ? '\n\n' : ''}`).join('');
+  return sections.map((section, index) => `${section.level || index > 0 ? `${'#'.repeat(section.level || 2)} ${section.title}\n` : ''}${section.content}${index < sections.length - 1 && !section.content.endsWith('\n') ? '\n\n' : ''}`).join('');
 }

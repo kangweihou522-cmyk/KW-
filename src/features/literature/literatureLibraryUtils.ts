@@ -34,8 +34,8 @@ export interface FloatingMenuPosition {
 
 export type PathExists = (path: string) => Promise<boolean>;
 
-export const DETAILS_PANEL_WIDTH_STORAGE_KEY = 'paperquay-literature-details-width-v1';
-export const DETAILS_PANEL_DEFAULT_WIDTH = 420;
+export const DETAILS_PANEL_WIDTH_STORAGE_KEY = 'paperquay-literature-details-width-v2';
+export const DETAILS_PANEL_DEFAULT_WIDTH = 480;
 const DETAILS_PANEL_MIN_WIDTH = 320;
 const DETAILS_PANEL_MAX_WIDTH = 760;
 export const CATEGORY_SIDEBAR_WIDTH_STORAGE_KEY = 'paperquay-literature-category-sidebar-width-v1';
@@ -106,9 +106,19 @@ export function clampDetailsPanelWidth(width: number): number {
   return Math.max(DETAILS_PANEL_MIN_WIDTH, Math.min(DETAILS_PANEL_MAX_WIDTH, Math.round(width)));
 }
 
+/** Fit all three columns inside the window while retaining the user's preferred sizes. */
+export function resolveLibraryColumns(availableWidth: number, preferredCategory: number, preferredDetails: number) {
+  const category = Math.min(preferredCategory, Math.max(200, availableWidth * 0.2));
+  const details = Math.min(preferredDetails, Math.max(300, availableWidth - category - 340));
+  return { category: Math.round(category), details: Math.round(details) };
+}
+
 export function loadDetailsPanelWidth(): number {
   try {
-    const rawValue = Number(localStorage.getItem(DETAILS_PANEL_WIDTH_STORAGE_KEY));
+    const stored = localStorage.getItem(DETAILS_PANEL_WIDTH_STORAGE_KEY);
+    const legacy = localStorage.getItem('paperquay-literature-details-width-v1');
+    if (stored === null && (legacy === null || Number(legacy) <= DETAILS_PANEL_MIN_WIDTH)) return DETAILS_PANEL_DEFAULT_WIDTH;
+    const rawValue = Number(stored ?? legacy);
 
     return Number.isFinite(rawValue)
       ? clampDetailsPanelWidth(rawValue)
@@ -127,7 +137,9 @@ export function clampCategorySidebarWidth(width: number): number {
 
 export function loadCategorySidebarWidth(): number {
   try {
-    const rawValue = Number(localStorage.getItem(CATEGORY_SIDEBAR_WIDTH_STORAGE_KEY));
+    const stored = localStorage.getItem(CATEGORY_SIDEBAR_WIDTH_STORAGE_KEY);
+    if (stored === null) return CATEGORY_SIDEBAR_DEFAULT_WIDTH;
+    const rawValue = Number(stored);
 
     return Number.isFinite(rawValue)
       ? clampCategorySidebarWidth(rawValue)
@@ -150,6 +162,10 @@ export function metadataFromDraft(draft: ImportDraftItem): ImportPdfMetadata {
     authors: splitAuthors(draft.authors),
     year: draft.year.trim() || null,
     publication: draft.publication.trim() || null,
+    volume: draft.volume || null,
+    issue: draft.issue || null,
+    pages: draft.pages || null,
+    publishedDate: draft.publishedDate || null,
     doi: draft.doi.trim() || null,
     url: draft.url.trim() || null,
     abstractText: draft.abstractText.trim() || null,
@@ -385,6 +401,9 @@ export function metadataUpdateForPaper(
   assignString('title', paper.title, metadata.title);
   assignString('year', paper.year, metadata.year);
   assignString('publication', paper.publication, metadata.publication);
+  for (const key of ['volume', 'issue', 'pages', 'publishedDate'] as const) {
+    if (!paper[key]) assignString(key, paper[key] || null, metadata[key]);
+  }
   assignString('doi', paper.doi, metadata.doi);
   assignString('url', paper.url, metadata.url);
   assignString('abstractText', paper.abstractText, metadata.abstractText);

@@ -8,6 +8,10 @@ import {
   buildInitialPaperStatuses,
   categorySignature,
   clampDetailsPanelWidth,
+  loadDetailsPanelWidth,
+  loadCategorySidebarWidth,
+  resolveLibraryColumns,
+  DETAILS_PANEL_WIDTH_STORAGE_KEY,
   filterDemoPapers,
   hasMineruOutputForPaper,
   markPaperStatusesCheckingMineru,
@@ -31,6 +35,30 @@ import type {
 } from '../src/types/library.ts';
 import type { MetadataLookupResult } from '../src/types/metadata.ts';
 import type { ZoteroLibraryItem } from '../src/types/reader.ts';
+
+test('missing or legacy minimum panel sizes open a readable overview without overflowing a small window', () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => values.get(key) ?? null } });
+  try {
+    assert.equal(loadDetailsPanelWidth(), 480);
+    assert.equal(loadCategorySidebarWidth(), 248);
+    values.set('paperquay-literature-details-width-v1', '320');
+    assert.equal(loadDetailsPanelWidth(), 480);
+    values.set('paperquay-literature-details-width-v1', '560');
+    assert.equal(loadDetailsPanelWidth(), 560);
+    values.set(DETAILS_PANEL_WIDTH_STORAGE_KEY, '400');
+    assert.equal(loadDetailsPanelWidth(), 400);
+    for (const width of [988, 1280, 1380, 1868]) {
+      const result = resolveLibraryColumns(width, 248, 480);
+      assert(width - result.category - result.details >= 339);
+      assert(result.details >= 300);
+    }
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+});
 
 function category(overrides: Partial<LiteratureCategory> & Pick<LiteratureCategory, 'id' | 'name'>): LiteratureCategory {
   return {
@@ -155,6 +183,7 @@ test('metadata helpers normalize draft and Zotero input', () => {
     authors: ['Alice', 'Bob', 'Carol'],
     year: '2015',
     publication: 'Nature',
+    volume: null, issue: null, pages: null, publishedDate: null,
     doi: '10.1/test',
     url: 'https://example.test',
     abstractText: 'Abstract',

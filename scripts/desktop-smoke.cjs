@@ -1,4 +1,5 @@
 const { _electron } = require('playwright-core');
+const { verifyLibraryMetadata, verifyLibraryOverview } = require('./library-desktop-smoke.cjs');
 const fs=require('node:fs/promises'); const path=require('node:path');
 const repo=path.resolve(__dirname,'..');
 async function pdf(file){const lines=['Fictional Research Paper','The sample size was 20.','The treatment reduced blood pressure by 12%.','The control group included 20 participants.','The study does not establish causality.'];const stream='BT /F1 18 Tf 60 730 Td '+lines.map((t,i)=>(i?'0 -45 Td ':'')+`(${t}) Tj`).join('\n')+' ET';const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`];let out='%PDF-1.4\n';const offsets=[0];for(let i=0;i<objects.length;i++){offsets.push(Buffer.byteLength(out));out+=`${i+1} 0 obj\n${objects[i]}\nendobj\n`;}const offset=Buffer.byteLength(out);out+=`xref\n0 6\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${offset}\n%%EOF`;await fs.writeFile(file,out);}
@@ -10,6 +11,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  const imported=await page.evaluate(async(file)=>window.paperquay.invoke('library_import_pdfs',{request:{paths:[file],importMode:'copy'}}),file);console.log('IMPORTED',JSON.stringify(imported).slice(0,250));
  console.log('BODY', (await page.locator('body').innerText()).slice(-400));
  await page.reload();await page.waitForTimeout(1500);
+ await verifyLibraryMetadata(page, imported[0].paper);
  await page.getByText('fictional-paper',{exact:false}).first().dblclick();await page.waitForTimeout(2000);console.log('READING', (await page.locator('body').innerText()).slice(0,500));
  const assert=require('node:assert/strict');
  const spans=page.locator('.textLayer span'); console.log('TEXT_SPANS',await spans.allTextContents());
@@ -25,9 +27,9 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  await page.getByTitle('工具',{exact:true}).click();await page.getByRole('button',{name:'打开当前PDF所在文件夹',exact:true}).waitFor();const variants=await page.getByLabel('PDF版本',{exact:true}).locator('option').allTextContents();assert(variants.length>=2,'Original/annotated PDF switch was lost.');console.log('PDF_VARIANTS',variants);await page.keyboard.press('Escape');
  const original=await fs.readFile(file);const importedOriginal=await fs.readFile(imported[0].paper.attachments.find(a=>a.kind==='pdf').storedPath);assert(original.equals(importedOriginal),'Original PDF was changed.');
  await page.getByRole('button',{name:'文献概览',exact:true}).click();const overview=page.locator('.pq-reader-assistant').getByRole('heading',{name:'我的文献概览'});await overview.waitFor();
- const sidebar=page.locator('.pq-reader-assistant');await sidebar.getByRole('textbox',{name:'文献概览',exact:true}).fill('真实数据库交互验证：我的手工概览');await sidebar.getByRole('textbox',{name:'团队简介',exact:true}).fill('虚构团队，仅用于测试');await sidebar.getByRole('button',{name:'保存',exact:true}).click();await sidebar.getByText(/本地版本 1/).first().waitFor();
+ const sidebar=page.locator('.pq-reader-assistant');await sidebar.getByRole('textbox',{name:'文献概览',exact:true}).fill('真实数据库交互验证：我的手工概览');await sidebar.getByRole('textbox',{name:'团队简介',exact:true}).fill('虚构团队，仅用于测试');await sidebar.getByRole('button',{name:'保存',exact:true}).click();await sidebar.locator('[data-personal-overview]').getByRole('status').filter({hasText:'已保存'}).waitFor();
  const paper=imported[0].paper;const current=await page.evaluate(id=>window.paperquay.invoke('paper_document_get',{paperId:id}),paper.id);assert.equal(current.content[0].content,'真实数据库交互验证：我的手工概览');
- await sidebar.getByRole('button',{name:'＋ 添加栏目',exact:true}).click();const titles=sidebar.getByRole('textbox',{name:'栏目标题',exact:true});await titles.last().fill('研究设计');await sidebar.getByRole('textbox',{name:'研究设计',exact:true}).fill('n=20，原PDF与笔记均保留');await sidebar.getByRole('button',{name:'保存',exact:true}).click();await sidebar.getByText(/本地版本 2/).first().waitFor();
+ await sidebar.getByRole('button',{name:'添加栏目',exact:true}).click();const titles=sidebar.getByRole('textbox',{name:'栏目标题',exact:true});await titles.last().fill('研究设计');await sidebar.getByRole('textbox',{name:'研究设计',exact:true}).fill('n=20，原PDF与笔记均保留');await sidebar.getByRole('button',{name:'保存',exact:true}).click();await sidebar.locator('[data-personal-overview]').getByRole('status').filter({hasText:'已保存'}).waitFor();
  await page.screenshot({path:path.join(home,'reading-overview.png')});
  console.log('PASS actual Electron: large PDF, progress toggle, 2 continuous highlights, undo/redo, save/reopen clean, overview edit and custom sections persisted.');
  await page.evaluate(p=>window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report',{detail:{paperId:p.id,title:p.title}})),paper);
@@ -39,6 +41,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  const revisions=await page.evaluate(id=>window.paperquay.invoke('notes_versions',{id}),savedReport.id);assert.equal(revisions.length,2);assert(revisions[1].note.content.includes('n=20'));assert(revisions[0].note.content.includes('n=21'));
  console.log('PASS manual report edited by section, saved with no AI account and prior version retained.');await reportDialog.getByRole('button',{name:'关闭',exact:true}).click();
  await page.reload();await page.waitForTimeout(1800);const reopened=await page.evaluate(id=>window.paperquay.invoke('paper_document_get',{paperId:id}),paper.id);assert.equal(reopened.version,2);assert.equal(reopened.content.at(-1).title,'研究设计');console.log('PASS application reload retained overview versions.');
+ await verifyLibraryOverview(page,paper,home,app);
 
  }finally{await app.close();console.log('Desktop smoke fixture:',home);}
 })().catch(e=>{console.error(e);process.exitCode=1});

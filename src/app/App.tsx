@@ -17,7 +17,6 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import LocalModeBanner from '../components/LocalModeBanner';
 import Reader from '../features/reader/Reader';
 import AgentWorkspace from '../features/agent/AgentWorkspace';
 import NotesWorkspace from '../features/notes/NotesWorkspace';
@@ -382,8 +381,6 @@ function App() {
             ) : null}
           </div>
         </header>
-
-        {activeTab?.type !== 'reader' ? <LocalModeBanner /> : null}
 
         <TabBar
           tabs={tabs}
