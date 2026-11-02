@@ -145,6 +145,10 @@ test('reveal PDF resolves only a registered paper attachment and rejects missing
   const commands = createReferenceExchangeCommands({ store, appPaths, shell: { showItemInFolder: (value) => revealed.push(value) } });
   await commands.library_reveal_pdf({ paperId: paper.id, path: '/unregistered.pdf' });
   assert.deepEqual(revealed, [paper.attachments[0].storedPath]);
+  await commands.reveal_local_pdf({ path: file });
+  assert.equal(revealed[1], file);
+  await assert.rejects(commands.reveal_local_pdf({ path: 'relative.pdf' }), /本地PDF/);
+  await assert.rejects(commands.reveal_local_pdf({ path: path.join(appPaths.dataDir, 'not-a-pdf.txt') }), /本地PDF/);
   await assert.rejects(commands.library_reveal_pdf({ paperId: 'missing' }), /未登记/);
   await rm(paper.attachments[0].storedPath);
   await assert.rejects(commands.library_reveal_pdf({ paperId: paper.id }), /不存在/);

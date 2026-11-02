@@ -1,3 +1,4 @@
+import { invoke } from '../../platform/electron/core';
 import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
 import { Minimize2 } from 'lucide-react';
 import BlockViewer from '../blocks/BlockViewer';
@@ -443,6 +444,7 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
   const sourceLabel =
     formatReaderDocumentSource(l, currentDocument, selectedSectionTitle);
   const [immersiveReading, setImmersiveReading] = useState(false);
+  const [navigationError, setNavigationError] = useState('');
   const floatingAssistantChatProps = {
     sessions: props.qaSessions,
     selectedSessionId: props.selectedQaSessionId,
@@ -503,6 +505,8 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
     <div className="flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#f8fafc,#f1f5f9)] dark:bg-[linear-gradient(180deg,#0f1a2e,#0c1525)]">
       {!immersiveReading ? (
         <ReaderWorkspaceHeader
+          onRevealPdf={props.currentPdfPath ? () => { setNavigationError(''); void invoke('reveal_local_pdf', { path: props.currentPdfPath }).catch(error => setNavigationError(String(error))); } : undefined}
+          onOpenReport={currentDocument.source === 'native-library' ? () => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', {detail:{paperId:currentDocument.itemKey,title:currentDocument.title}})) : undefined}
           toolbarHostId={`paperdesk-pdf-toolbar-${currentDocument.workspaceId}`}
           sourceLabel={sourceLabel}
           documentTitle={currentDocument.title}
@@ -533,9 +537,9 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
         <button type="button" className="pq-button px-3 py-1.5" onClick={() => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', { detail: { paperId: currentDocument.itemKey, title: currentDocument.title } }))}>{l('文献概览 / 读书报告（本地保存）', 'ChatGPT overview / report (saved locally)')}</button>
       </div> : null}
 
-      {error ? (
+      {error || navigationError ? (
         <div className="border-b border-rose-200 bg-rose-50 px-6 py-3 text-sm text-rose-600 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-400">
-          {error}
+          {error || navigationError}
         </div>
       ) : null}
 

@@ -315,6 +315,12 @@ function createReferenceExchangeCommands({ store, appPaths, shell: suppliedShell
       return { imported: rows.length, total: merged.size };
     },
 
+    async reveal_local_pdf({ path: filePath } = {}) {
+      if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || path.extname(filePath).toLowerCase() !== '.pdf') throw new Error('请选择当前打开的本地PDF。');
+      const stat = await fsp.stat(filePath).catch(() => null);
+      if (!stat?.isFile()) throw new Error('PDF文件不存在，请重新关联。');
+      (suppliedShell ?? require('electron').shell).showItemInFolder(filePath);
+    },
     async library_reveal_pdf({ paperId } = {}) {
       const library = store.load();
       const paper = library.papers.find((item) => item.id === paperId);

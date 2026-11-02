@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
   BookOpen,
@@ -48,6 +48,8 @@ export interface ReaderWorkspaceHeaderProps {
   onCancelTranslateDocument: () => void;
   onOpenPreferences: () => void;
   onEnterImmersive: () => void;
+  onRevealPdf?: () => void;
+  onOpenReport?: () => void;
 }
 
 function HeaderStageTabs({
@@ -156,6 +158,7 @@ function HeaderPdfVersionControl({
         </span>
         <div className="relative min-w-0 flex-1">
           <select
+            aria-label={l('PDF版本', 'PDF version')}
             value={currentPdfPath || availablePdfOptions[0]?.path || ''}
             onChange={(event) => onCurrentPdfPathChange(event.target.value)}
             title={selectedPdfOption?.label || ''}
@@ -188,6 +191,7 @@ function HeaderPdfVersionControl({
 }
 
 function HeaderToolsMenu({
+  children,
   loading,
   translating,
   translationCancelling,
@@ -206,7 +210,7 @@ function HeaderToolsMenu({
   | 'onTranslateDocument'
   | 'onCancelTranslateDocument'
   | 'onOpenPreferences'
->) {
+> & { children?: ReactNode }) {
   const l = useLocaleText();
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
@@ -280,6 +284,7 @@ function HeaderToolsMenu({
       className="fixed z-[10000] w-56 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-[var(--pq-surface-1)] dark:shadow-[0_18px_42px_rgba(0,0,0,0.24)]"
       style={menuStyle}
     >
+      {children ? <div className="mb-2 space-y-2 border-b border-slate-100 pb-2">{children}</div> : null}
       {[
         {
           label: l('打开 JSON', 'Open JSON'),
@@ -358,6 +363,7 @@ function HeaderToolsMenu({
 }
 
 export function ReaderWorkspaceHeader({
+  onRevealPdf, onOpenReport,
   toolbarHostId,
   sourceLabel,
   documentTitle,
@@ -397,7 +403,11 @@ export function ReaderWorkspaceHeader({
     <HeaderReadingModeTabs readingViewMode={readingViewMode} onReadingViewModeChange={onReadingViewModeChange} />
     <div id={toolbarHostId} className="min-w-0 overflow-x-auto" />
     <button type="button" onClick={onEnterImmersive} title={l('沉浸阅读', 'Immersive reading')} className="pq-icon-button shrink-0 p-2"><Maximize2 className="h-4 w-4" /></button>
-    <HeaderToolsMenu {...{loading, translating, translationCancelling, onOpenMineruJson, onCloudParse, onTranslateDocument, onCancelTranslateDocument, onOpenPreferences}} />
+    <HeaderToolsMenu {...{loading, translating, translationCancelling, onOpenMineruJson, onCloudParse, onTranslateDocument, onCancelTranslateDocument, onOpenPreferences}}>
+      <HeaderPdfVersionControl {...{currentPdfVariantLabel, currentPdfPath, availablePdfOptions, onCurrentPdfPathChange}} />
+      {onRevealPdf && <button type="button" className="pq-button w-full p-2 text-left text-xs" onClick={onRevealPdf}>{l('打开当前PDF所在文件夹', 'Show current PDF in folder')}</button>}
+      {onOpenReport && <button type="button" className="pq-button w-full p-2 text-left text-xs" onClick={onOpenReport}>{l('文献概览与读书报告', 'Overview and reading report')}</button>}
+    </HeaderToolsMenu>
   </nav>;
 
   return (
