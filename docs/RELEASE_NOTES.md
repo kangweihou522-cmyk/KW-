@@ -1,23 +1,15 @@
-# PaperDesk 0.5.1：桌面与PowerShell自动更新
+# PaperDesk 0.5.2：修复代理环境下的自动更新检查
 
-保存并退出PaperDesk，点击桌面 **PaperDesk - Update**（Ctrl+Alt+U），自动检查最新版、下载、校验、备份并安装。PowerShell直接运行同一个更新脚本即可，不再要求手动下载ZIP、填写文件路径或复制SHA256。
+修复0.5.1更新器只依赖GitHub API、并把所有异常统一显示成“无法连接”的问题。保留桌面 **PaperDesk - Update** 和PowerShell自动更新，不要求手动下载更新包。
 
-- 已是最新版时不重复下载，禁止降级，只接受本项目的正式发行渠道。
-- 自动校验文件大小、SHA256清单及GitHub资产摘要，再验证ZIP路径和完整结构。
-- 保留文献、附件、笔记、批注、设置与翻译模型；安装前备份，更新中失败回滚旧程序与工具。
-- 更新任务互斥，下载临时文件自动清理；桌面快捷方式名称与按键保持一致。
-- 保留0.5.0的阅读界面、个人概览、报告版本、Hy-MT2翻译及官方ChatGPT授权功能。
+- 优先读取本仓库的官方更新清单，GitHub API作为备用；清单在正式发行资产上传并核验后自动发布。
+- 重新读取Windows系统代理，支持已有HTTPS_PROXY/HTTP_PROXY；原生HTTP失败时尝试Windows curl.exe，继续使用同一代理。
+- 失败自动重试，保留实际HTTP、DNS、TLS或JSON解析错误，不关闭证书校验，不猜代理端口。
+- 兼容Windows PowerShell把JSON响应返回为字节数组的情况。
+- 继续核对SHA256和文件大小，备份资料，更新失败回滚。资料、笔记、批注和模型保留；已经是最新版时不重复下载。
 
-## 今后的固定PowerShell命令
+如果浏览器仅通过扩展代理访问外网，请在代理软件中启用系统代理或TUN，使PowerShell也能访问官方更新地址。工作站不会修改你的代理设置。
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\PaperDesk\tools\Update-PaperDesk.ps1" -Root "D:\PaperDesk"
-```
+## 一次性修复旧更新入口
 
-其他安装位置替换两处路径。不要重复运行首次安装脚本。
-
-## 旧版本迁移
-
-0.5.0及更早版本需要先升级一次旧的更新脚本。一次性PowerShell迁移代码在本页下方提供，自动完成，不需要手动下载更新包。以后直接使用原桌面快捷方式或上面的命令。
-
-完整说明见[自动更新](https://github.com/kangweihou522-cmyk/KW-/blob/main/docs/UPDATES.md)。
+本页下方提供预填好新版地址及脚本校验值的PowerShell代码。保存并退出PaperDesk和旧更新窗口，整段运行；代码自动修复入口并继续升级，不需去网页手动下载或解压文件。以后仍使用原桌面快捷方式。
