@@ -22,7 +22,9 @@ async function verifyPackagedQuality(app, page) {
     await installButton().click();
     await page.getByText(/模型下载未完成（huggingface.co/).first().waitFor({ timeout: 30000 });
     const failed = await state();
+    console.log('QUALITY_PROXY_FAILURE', JSON.stringify(failed));
     assert.equal(failed.ready, false); assert.equal(failed.errorPhase, 'download');
+    assert.match(failed.errorCode, /PROXY|TUNNEL|CONNECTION_REFUSED/);
     console.log('PASS packaged model download follows Chromium session proxy and reports its connection failure.');
     await setProxy(false);
     await installButton().click();
@@ -45,6 +47,10 @@ async function verifyPackagedQuality(app, page) {
     const repaired = await page.evaluate(() => window.paperquay.invoke('quality_translation_install', { force: true }));
     assert.equal(repaired.ready, true); assert.equal(repaired.bytes, ready.bytes); assert.equal(repaired.progress.message, '已复用完整模型并启用');
     console.log('PASS packaged repair reused verified weights with download network unavailable.');
+  } catch (error) {
+    console.log('QUALITY_FAILURE_STATE', JSON.stringify(await state().catch(() => null)));
+    console.log('QUALITY_FAILURE_UI', (await page.locator('body').innerText()).slice(-5000));
+    throw error;
   } finally { await setProxy(false); }
 }
 module.exports = { verifyPackagedQuality };
