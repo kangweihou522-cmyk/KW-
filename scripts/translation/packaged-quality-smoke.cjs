@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { MODEL_DOWNLOAD_PARTITION } = require('../../electron/backend/modelDownload.cjs');
 
 /** Real packaged ASAR + Chromium proxy + interrupted official model download + inference. */
 async function verifyPackagedQuality(app, page) {
@@ -12,10 +13,11 @@ async function verifyPackagedQuality(app, page) {
     await page.waitForFunction(async () => !(await window.paperquay.invoke('quality_translation_status')).installing, null, { timeout: 180000 });
   }
   async function setProxy(broken) {
-    await app.evaluate(async ({ session }, broken) => {
-      await session.defaultSession.setProxy(broken ? { proxyRules: 'http=127.0.0.1:9;https=127.0.0.1:9' } : { mode: 'direct' });
-      await session.defaultSession.closeAllConnections();
-    }, broken);
+    await app.evaluate(async ({ session }, { broken, partition }) => {
+      const downloads = session.fromPartition(partition, { cache: false });
+      await downloads.setProxy(broken ? { proxyRules: 'http=127.0.0.1:9;https=127.0.0.1:9' } : { mode: 'direct' });
+      await downloads.closeAllConnections();
+    }, { broken, partition: MODEL_DOWNLOAD_PARTITION });
   }
   try {
     await setProxy(true);

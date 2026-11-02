@@ -4,6 +4,8 @@ const https = require('node:https');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { hashFile } = require('./resourceDownload.cjs');
+const MODEL_DOWNLOAD_PARTITION = 'paperdesk-model-download-v1';
+const configuredSessions = new WeakSet();
 
 function trustedAddress(value) {
   const url = new URL(value);
@@ -12,13 +14,29 @@ function trustedAddress(value) {
   return url;
 }
 
+function modelDownloadSession(electron) {
+  // The document renderer's default session intentionally blocks external resources.
+  // Downloads use a separate, cookie-free session restricted to registered model hosts.
+  const session = electron.session.fromPartition(MODEL_DOWNLOAD_PARTITION, { cache: false });
+  if (!configuredSessions.has(session)) {
+    session.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
+    session.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      try { trustedAddress(details.url); callback({ cancel: false }); }
+      catch { callback({ cancel: true }); }
+    });
+    configuredSessions.add(session);
+  }
+  return session;
+}
+
 async function openModelResponse(url, { headers, signal }) {
   // Electron's network stack follows the Windows system/PAC proxy. Node is retained
   // for command-line validation, where the managed environment supplies proxyEnv.
   const explicitProxy = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
   if (process.versions.electron && !explicitProxy) {
     return new Promise((resolve, reject) => {
-      const request = require('electron').net.request({ url: String(url), method: 'GET', redirect: 'manual', useSessionCookies: false });
+      const electron = require('electron');
+      const request = electron.net.request({ session: modelDownloadSession(electron), url: String(url), method: 'GET', redirect: 'manual', useSessionCookies: false, credentials: 'omit' });
       let body;
       const abort = () => { request.abort(); body?.destroy(signal.reason); reject(signal.reason); };
       const cleanup = () => signal.removeEventListener('abort', abort);
@@ -115,4 +133,4 @@ async function downloadModelResource(url, file, { sha256, bytes, onProgress, sig
   throw lastError;
 }
 
-module.exports = { downloadModelResource, openModelResponse, trustedAddress };
+module.exports = { downloadModelResource, openModelResponse, trustedAddress, modelDownloadSession, MODEL_DOWNLOAD_PARTITION };

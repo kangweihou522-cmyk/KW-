@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { Readable } = require('node:stream');
 const { createHash } = require('node:crypto');
-const { downloadModelResource, trustedAddress } = require('../electron/backend/modelDownload.cjs');
+const { downloadModelResource, trustedAddress, modelDownloadSession, MODEL_DOWNLOAD_PARTITION } = require('../electron/backend/modelDownload.cjs');
 
 const url = 'https://huggingface.co/tencent/fixture/resolve/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/model.gguf';
 const bytes = Buffer.from('GGUF Fictional download fixture.');
@@ -67,4 +67,16 @@ test('pausing a connection preserves its partial file and does not turn into aut
     return new Promise((resolve, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }); setImmediate(() => controller.abort(new Error('User paused download'))); });
   } })), /User paused/);
   assert.equal(calls, 1); assert.deepEqual(await fs.readFile(file), bytes.subarray(0, 8));
+});
+
+test('model downloads use an isolated session with official-host checks and no renderer permissions', () => {
+  let check; let permission; let registrations = 0;
+  const isolated = { setPermissionRequestHandler(handler) { permission = handler; }, webRequest: { onBeforeRequest(filter, handler) { registrations++; check = handler; } } };
+  const electron = { session: { fromPartition(name, options) { assert.equal(name, MODEL_DOWNLOAD_PARTITION); assert.equal(options.cache, false); return isolated; }, get defaultSession() { throw new Error('Model downloads must not change document renderer policy.'); } } };
+  assert.equal(modelDownloadSession(electron), isolated);
+  modelDownloadSession(electron); assert.equal(registrations, 1);
+  check({ url }, result => assert.equal(result.cancel, false));
+  check({ url: 'https://cas-bridge.xethub.hf.co/model' }, result => assert.equal(result.cancel, false));
+  for (const address of ['https://example.invalid/file', 'http://huggingface.co/file', 'file:///private', 'https://github.com/file']) check({ url: address }, result => assert.equal(result.cancel, true));
+  permission(null, 'clipboard-read', allowed => assert.equal(allowed, false));
 });
