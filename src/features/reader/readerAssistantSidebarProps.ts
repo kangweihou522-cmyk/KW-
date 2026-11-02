@@ -66,6 +66,7 @@ export interface BuildReaderAssistantSidebarInput {
   onSaveAssistantMessageAsNote: AssistantSidebarCoreProps['onSaveAssistantMessageAsNote'];
   selectedExcerpt: AssistantSidebarCoreProps['selectedExcerpt'];
   selectedExcerptTranslation: AssistantSidebarCoreProps['selectedExcerptTranslation'];
+  selectedExcerptReference?: AssistantSidebarCoreProps['selectedExcerptReference'];
   selectedExcerptTranslating: AssistantSidebarCoreProps['selectedExcerptTranslating'];
   selectedExcerptError: AssistantSidebarCoreProps['selectedExcerptError'];
   onAppendSelectedExcerptToQa: AssistantSidebarCoreProps['onAppendSelectedExcerptToQa'];
@@ -142,6 +143,7 @@ export function buildReaderAssistantSidebarProps(
     onSaveAssistantMessageAsNote: input.onSaveAssistantMessageAsNote,
     selectedExcerpt: input.selectedExcerpt,
     selectedExcerptTranslation: input.selectedExcerptTranslation,
+    selectedExcerptReference: input.selectedExcerptReference,
     selectedExcerptTranslating: input.selectedExcerptTranslating,
     selectedExcerptError: input.selectedExcerptError,
     onAppendSelectedExcerptToQa: input.onAppendSelectedExcerptToQa,

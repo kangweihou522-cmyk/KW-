@@ -322,7 +322,7 @@ function SummaryPanel({
       ) : null}
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {error}
         </div>
       ) : null}
@@ -395,6 +395,7 @@ function SummaryPanel({
 function SelectionPanel({
   selectedExcerpt,
   selectedExcerptTranslation,
+  selectedExcerptReference,
   selectedExcerptTranslating,
   selectedExcerptError,
   aiConfigured,
@@ -405,6 +406,7 @@ function SelectionPanel({
 }: {
   selectedExcerpt: SelectedExcerpt | null;
   selectedExcerptTranslation: string;
+  selectedExcerptReference?: { sourceText: string; translation: string } | null;
   selectedExcerptTranslating: boolean;
   selectedExcerptError: string;
   aiConfigured: boolean;
@@ -458,19 +460,19 @@ function SelectionPanel({
           </details>
 
           {selectedExcerptError ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+            <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
               {selectedExcerptError}
             </div>
           ) : null}
 
           {selectedExcerptTranslating ? (
-            <div className="rounded-[22px] border border-indigo-100 bg-indigo-50/70 px-4 py-4 text-sm text-indigo-600">
+            <div data-selection-translation className="rounded-[22px] border border-indigo-100 bg-indigo-50/70 px-4 py-4 text-sm text-indigo-600">
               {selectedExcerptTranslation ? <MarkdownPreview content={selectedExcerptTranslation} /> : isPdfBlockExcerpt
                 ? l('正在翻译当前段落...', 'Translating this paragraph...')
                 : l('正在翻译选中文本...', 'Translating the selected text...')}
             </div>
           ) : selectedExcerptTranslation ? (
-            <div className="rounded-[22px] border border-indigo-100 bg-indigo-50/70 px-4 py-4">
+            <div data-selection-translation className="rounded-[22px] border border-indigo-100 bg-indigo-50/70 px-4 py-4">
               <MarkdownPreview content={selectedExcerptTranslation} />
             </div>
           ) : aiConfigured ? (
@@ -491,6 +493,10 @@ function SelectionPanel({
             </HintPanel>
           )}
 
+          {selectedExcerptReference && <details key={selectedExcerpt.createdAt} data-selection-reference className="rounded-xl border border-slate-200 p-3">
+            <summary className="cursor-pointer text-xs text-slate-500">{l('上下文译文（参考）', 'Context translation (reference)')}</summary>
+            <div className="mt-3 space-y-3 text-xs"><p className="text-slate-500">{selectedExcerptReference.sourceText}</p><MarkdownPreview content={selectedExcerptReference.translation} /></div>
+          </details>}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

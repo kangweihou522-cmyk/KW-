@@ -493,6 +493,7 @@ function DocumentReaderTab({
     resetSelectedExcerptTranslationState,
     selectedExcerptError,
     selectedExcerptTranslation,
+    selectedExcerptReference,
     selectedExcerptTranslating,
     translatedCount,
     translating,
@@ -2145,6 +2146,7 @@ function DocumentReaderTab({
     createSelectionHighlightTarget,
     selectedExcerpt,
     selectedExcerptTranslation,
+    selectedExcerptReference,
     settings.highlightSelectionTranslation,
   ]);
 
@@ -3527,6 +3529,7 @@ function DocumentReaderTab({
         onSaveAssistantMessageAsNote: handleSaveAssistantMessageAsNote,
         selectedExcerpt,
         selectedExcerptTranslation,
+        selectedExcerptReference,
         selectedExcerptTranslating,
         selectedExcerptError,
         onAppendSelectedExcerptToQa: handleAppendSelectedExcerptToQa,
@@ -3593,6 +3596,7 @@ function DocumentReaderTab({
       selectedExcerptError,
       selectedExcerptTranslating,
       selectedExcerptTranslation,
+      selectedExcerptReference,
       selectedQaPresetId,
       selectedQaSessionId,
       statusMessage,
@@ -3925,6 +3929,7 @@ function DocumentReaderTab({
         qaError={qaError}
         selectedExcerpt={selectedExcerpt}
         selectedExcerptTranslation={selectedExcerptTranslation}
+        selectedExcerptReference={selectedExcerptReference}
         selectedExcerptTranslating={selectedExcerptTranslating}
         selectedExcerptError={selectedExcerptError}
         autoTranslateSelection={settings.enableSelectionTranslation && settings.autoTranslateSelection}

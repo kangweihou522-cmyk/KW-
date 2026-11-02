@@ -146,6 +146,7 @@ interface ReaderWorkspaceProps {
   qaError: string;
   selectedExcerpt: SelectedExcerpt | null;
   selectedExcerptTranslation: string;
+  selectedExcerptReference?: { sourceText: string; translation: string } | null;
   selectedExcerptTranslating: boolean;
   selectedExcerptError: string;
   autoTranslateSelection: boolean;
@@ -225,6 +226,7 @@ function ReadingStage(props: ReaderWorkspaceProps & { immersiveReading: boolean 
     screenshotLoading,
     selectedExcerpt,
     selectedExcerptTranslation,
+    selectedExcerptReference,
     selectedExcerptTranslating,
     selectedExcerptError,
     notes,

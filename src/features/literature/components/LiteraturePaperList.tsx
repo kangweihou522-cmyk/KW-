@@ -579,7 +579,7 @@ export default function LiteraturePaperList({
                         {mineruParsed && <span title={l('已完成本地解析', 'Locally parsed')}><CheckCircle2 className="h-3 w-3 text-emerald-600" /></span>}
                         {overviewGenerated && <span title={l('概览已生成', 'Overview ready')}><Sparkles className="h-3 w-3 text-sky-600" /></span>}
                       </div>
-                      {metadataLayout?.customFields.filter(field => !hiddenMetadata.has(field.id) && paper.customFields?.[field.id]?.trim()).map(field => <p key={field.id} className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-5"><span className="mr-1 text-[var(--pq-text-muted)]">{field.label}：</span><span>{paper.customFields?.[field.id]}</span></p>)}
+                      {metadataLayout?.customFields.filter(field => !hiddenMetadata.has(field.id) && paper.customFields?.[field.id]?.trim()).map(field => <p key={field.id} className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-5"><span>{paper.customFields?.[field.id]}</span></p>)}
                       <PaperTags paper={paper} saving={saving} onSave={onSavePaper} />
                     </div>
                   </div>

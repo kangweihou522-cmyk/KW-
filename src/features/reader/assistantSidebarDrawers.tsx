@@ -105,6 +105,7 @@ function MetadataPanel({
 export interface TranslateDrawerContentProps {
   selectedExcerpt: SelectedExcerpt | null;
   selectedExcerptTranslation: string;
+  selectedExcerptReference?: { sourceText: string; translation: string } | null;
   selectedExcerptTranslating: boolean;
   selectedExcerptError: string;
   aiConfigured: boolean;
@@ -117,6 +118,7 @@ export interface TranslateDrawerContentProps {
 function TranslateDrawerContent({
   selectedExcerpt,
   selectedExcerptTranslation,
+  selectedExcerptReference,
   selectedExcerptTranslating,
   selectedExcerptError,
   aiConfigured,
@@ -130,6 +132,7 @@ function TranslateDrawerContent({
       <SelectionPanel
         selectedExcerpt={selectedExcerpt}
         selectedExcerptTranslation={selectedExcerptTranslation}
+        selectedExcerptReference={selectedExcerptReference}
         selectedExcerptTranslating={selectedExcerptTranslating}
         selectedExcerptError={selectedExcerptError}
         aiConfigured={aiConfigured}

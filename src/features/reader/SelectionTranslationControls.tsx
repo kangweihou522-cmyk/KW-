@@ -39,7 +39,7 @@ export function SelectionTranslationControls() {
     let active = true;
     setStatus(''); setProgress(null); setOffline(null); setInstalling(false);
     if (provider === 'offline' || provider === 'offline-quality') {
-      void invoke<OfflineStatus>(provider === 'offline-quality' ? 'quality_translation_status' : 'offline_translation_status').then(result => { if (active) { setOffline(result); setInstalling(result.installing === true); if (result.progress) setProgress(result.progress); if (provider === 'offline-quality' && !result.ready) preferences?.updateSetting('autoTranslateSelection', false); } }).catch(error => { if (active) setStatus(String(error)); });
+      void invoke<OfflineStatus>(provider === 'offline-quality' ? 'quality_translation_status' : 'offline_translation_status').then(result => { if (active) { setOffline(result); setInstalling(result.installing === true); if (result.progress) setProgress(result.progress); } }).catch(error => { if (active) setStatus(String(error)); });
     } else if (provider === 'deepl-free') {
       void invoke<{ deeplConfigured: boolean }>('selection_translation_status').then(result => { if (active) setStatus(result.deeplConfigured ? '已配置 DeepL API Free 密钥' : '尚未配置 DeepL API Free 密钥'); }).catch(error => { if (active) setStatus(String(error)); });
     }
@@ -122,7 +122,7 @@ export function SelectionTranslationControls() {
       </div> : settings.selectionTranslationProvider === 'baidu' ? <BaiduTranslationControls /> : settings.selectionTranslationProvider === 'mymemory' ? <p>备用渠道单次最多 500 UTF-8 字节，有每日配额。</p> : <p>使用已配置的本地大模型，速度取决于本机模型；默认离线专用翻译不需要它。</p>}
       {!isOffline ? <label className="flex items-start gap-2"><input type="checkbox" checked={settings.selectionTranslationConsent} onChange={event => { updateSetting('selectionTranslationConsent', event.target.checked); if (event.target.checked) updateSetting('autoTranslateSelection', true); }} /><span>开启所选渠道的划词翻译。在线渠道仅发送选中文字；开启后不再逐次确认。服务可能留存文本，并有账户额度限制。</span></label> : null}
       {provider === 'offline-quality' && <label className="flex gap-2"><input type="checkbox" checked={settings.pretranslateNextPage} onChange={event => updateSetting('pretranslateNextPage', event.target.checked)} />空闲时预翻下一页，划词优先</label>}
-      {isOffline || settings.selectionTranslationConsent ? <label className="flex gap-2"><input type="checkbox" disabled={provider === 'offline-quality' && !offline?.ready} checked={settings.autoTranslateSelection} onChange={event => updateSetting('autoTranslateSelection', event.target.checked)} />划选结束后自动在此栏显示译文</label> : null}
+      {isOffline || settings.selectionTranslationConsent ? <label className="flex gap-2"><input type="checkbox" checked={settings.autoTranslateSelection} onChange={event => updateSetting('autoTranslateSelection', event.target.checked)} />划选结束后自动在此栏显示译文</label> : null}
       <TranslationGlossary />
       {status ? <p role="status" className="break-words leading-5">{status}</p> : null}
     </div>

@@ -103,6 +103,7 @@ export interface AssistantSidebarCoreProps {
   onSaveAssistantMessageAsNote: (message: DocumentChatMessage) => void;
   selectedExcerpt: SelectedExcerpt | null;
   selectedExcerptTranslation: string;
+  selectedExcerptReference?: { sourceText: string; translation: string } | null;
   selectedExcerptTranslating: boolean;
   selectedExcerptError: string;
   onAppendSelectedExcerptToQa: () => void;
@@ -185,6 +186,7 @@ function AssistantSidebar({
   onSaveAssistantMessageAsNote,
   selectedExcerpt,
   selectedExcerptTranslation,
+  selectedExcerptReference,
   selectedExcerptTranslating,
   selectedExcerptError,
   onAppendSelectedExcerptToQa,
@@ -276,6 +278,7 @@ function AssistantSidebar({
               <TranslateDrawerContent
                 selectedExcerpt={selectedExcerpt}
                 selectedExcerptTranslation={selectedExcerptTranslation}
+                selectedExcerptReference={selectedExcerptReference}
                 selectedExcerptTranslating={selectedExcerptTranslating}
                 selectedExcerptError={selectedExcerptError}
                 aiConfigured={aiConfigured}

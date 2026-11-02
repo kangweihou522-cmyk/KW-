@@ -1,13 +1,14 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { hash, normalizeText, writeJson, readJson } = require('./translationMemory.cjs');
+const { splitSentences } = require('./translationText.cjs');
 const { localAiOptions } = require('./localAi.cjs');
 
 function translationUnits(pages) {
   const units = [];
   pages.forEach((blocks, pageIndex) => {
     let text = ''; let previous;
-    const flush = () => { if (text.trim()) units.push({ id: `p${pageIndex + 1}-${units.length}`, pageIndex, text: normalizeText(text) }); text = ''; };
+    const flush = () => { const context = normalizeText(text); for (const sentence of splitSentences(context)) units.push({ id: `p${pageIndex + 1}-${units.length}`, pageIndex, text: sentence, context }); text = ''; };
     for (const block of blocks) {
       if (typeof block.content !== 'string' || !block.content.trim()) continue;
       const box = block.bbox; const old = previous?.bbox;
@@ -120,7 +121,7 @@ function createPreparationCommands(context, commands) {
         run.state.total = units.length; run.state.completed = 0; run.state.cached = 0;
         for (const unit of units) {
           await checkpoint(run);
-          const result = await context.translationMemory.translate(unit.text, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, pageIndex: unit.pageIndex, source: options.source || 'English', target: options.target || 'Chinese', background: true, signal: run.controller.signal });
+          const result = await context.translationMemory.translate(unit.text, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, pageIndex: unit.pageIndex, context: unit.context, source: options.source || 'English', target: options.target || 'Chinese', background: true, signal: run.controller.signal });
           results.push({ ...unit, translation: result.translation });
           run.state.completed++; if (result.cached) run.state.cached++;
           await notify(run);
@@ -149,7 +150,7 @@ function createPreparationCommands(context, commands) {
         const next = parsed.pages[pageIndex + 1]; if (!next) return { skipped: true };
         for (const unit of translationUnits([next])) {
           job.controller.signal.throwIfAborted();
-          await context.translationMemory.translate(unit.text, { documentId: `native-library:${paperId}`, pdfPath: parsed.pdfPath, pageIndex: pageIndex + 1, source, target, background: true, signal: job.controller.signal });
+          await context.translationMemory.translate(unit.text, { documentId: `native-library:${paperId}`, pdfPath: parsed.pdfPath, expectedSignature: parsed.signature, pageIndex: pageIndex + 1, context: unit.context, source, target, background: true, signal: job.controller.signal });
         }
         return { completed: true };
       } catch (error) { if (job.controller.signal.aborted) return { cancelled: true }; throw error; }

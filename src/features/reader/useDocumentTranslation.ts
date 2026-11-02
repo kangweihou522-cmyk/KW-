@@ -98,6 +98,7 @@ interface UseDocumentTranslationResult {
   resetSelectedExcerptTranslationState: () => void;
   selectedExcerptError: string;
   selectedExcerptTranslation: string;
+  selectedExcerptReference: { sourceText: string; translation: string } | null;
   selectedExcerptTranslating: boolean;
   translatedCount: number;
   translating: boolean;
@@ -139,16 +140,17 @@ export function useDocumentTranslation({
     useState(0);
   const [translationProgressTotal, setTranslationProgressTotal] = useState(0);
   const onlineSelectionRequestRef = useRef<string | null>(null);
+  const [selectedExcerptReference, setSelectedExcerptReference] = useState<{ sourceText: string; translation: string } | null>(null);
   useEffect(() => {
     selectedExcerptRequestIdRef.current += 1;
     selectionRequestKeyRef.current = '';
-    setSelectedExcerptTranslation(''); setSelectedExcerptError(''); setSelectedExcerptTranslating(false);
+    setSelectedExcerptTranslation(''); setSelectedExcerptReference(null); setSelectedExcerptError(''); setSelectedExcerptTranslating(false);
     return () => {
       selectedExcerptRequestIdRef.current += 1;
       if (onlineSelectionRequestRef.current) void invoke('selection_translate_cancel', { requestId: onlineSelectionRequestRef.current }).catch(() => {});
       onlineSelectionRequestRef.current = null;
     };
-  }, [selectedExcerpt?.text, selectedExcerpt?.source, settings.selectionTranslationProvider, settings.selectionTranslationConsent, settings.translationSourceLanguage, settings.translationTargetLanguage]);
+  }, [selectedExcerpt?.createdAt, selectedExcerpt?.text, selectedExcerpt?.source, settings.selectionTranslationProvider, settings.selectionTranslationConsent, settings.translationSourceLanguage, settings.translationTargetLanguage]);
   const [selectedExcerptTranslation, setSelectedExcerptTranslation] =
     useState("");
   const [selectedExcerptTranslating, setSelectedExcerptTranslating] =
@@ -162,6 +164,14 @@ export function useDocumentTranslation({
     }).then(stop => { if (disposed) stop(); else unlisten = stop; }).catch(() => {});
     return () => { disposed = true; unlisten?.(); };
   }, []);
+
+  useEffect(() => {
+    let disposed = false; let unlisten: (() => void) | undefined;
+    void listen<{ requestId: string; prefix: string }>('paperdesk:selection-translation-reset', ({ payload }) => {
+      if (payload.requestId === onlineSelectionRequestRef.current) { setSelectedExcerptTranslation(payload.prefix); setStatusMessage('本机翻译连接已中断，正在恢复并重试…'); }
+    }).then(stop => { if (disposed) stop(); else unlisten = stop; }).catch(() => {});
+    return () => { disposed = true; unlisten?.(); };
+  }, [setStatusMessage]);
 
   const translatedCount = useMemo(
     () => countTranslatedBlocks(blockTranslations),
@@ -856,7 +866,7 @@ export function useDocumentTranslation({
         return;
       }
 
-      const selectionRequestKey = `${selectedExcerpt.source}::${selectedExcerpt.text}`;
+      const selectionRequestKey = `${selectedExcerpt.createdAt}::${selectedExcerpt.source}::${selectedExcerpt.text}`;
 
       if (selectionRequestKeyRef.current === selectionRequestKey) {
         return;
@@ -865,20 +875,25 @@ export function useDocumentTranslation({
       if (settings.selectionTranslationProvider !== 'local') {
         if (!['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) && !settings.selectionTranslationConsent) { setSelectedExcerptError('请先在此栏开启自动翻译。开启一次后不再逐次确认。'); return; }
         const requestId = ++selectedExcerptRequestIdRef.current;
+        if (onlineSelectionRequestRef.current) void invoke('selection_translate_cancel', { requestId: onlineSelectionRequestRef.current }).catch(() => {});
         const onlineRequestId = crypto.randomUUID(); onlineSelectionRequestRef.current = onlineRequestId;
         selectionRequestKeyRef.current = selectionRequestKey;
-        setSelectedExcerptTranslating(true); setSelectedExcerptError('');
+        setSelectedExcerptTranslating(true); setSelectedExcerptTranslation(''); setSelectedExcerptReference(null); setSelectedExcerptError('');
         try {
-          const result = await invoke<{ translation: string; cached: boolean; provider: string; cacheMatch?: string; sourceText?: string }>('selection_translate', {
+          const page = selectedExcerpt.pdfLocation?.pageNumber;
+          const localText = flatBlocks.filter(block => !page || block.pageIndex === page - 1).map(extractTranslatableMarkdownFromMineruBlock).join(' ').replace(/\s+/g, ' ');
+          const needle = selectedExcerpt.text.replace(/\s+/g, ' ').trim(); const offset = localText.indexOf(needle);
+          const selectionContext = offset >= 0 && offset === localText.lastIndexOf(needle) ? localText.slice(Math.max(0, offset - 1000), offset + needle.length + 1000) : '';
+          const result = await invoke<{ translation: string; cached: boolean; provider: string; cacheMatch?: string; sourceText?: string; reference?: { sourceText: string; translation: string } | null }>('selection_translate', {
             text: selectedExcerpt.text, source: settings.translationSourceLanguage, target: settings.translationTargetLanguage,
-            documentId: currentDocument.workspaceId, pdfPath: currentDocument.localPdfPath, pageIndex: selectedExcerpt.pdfLocation?.pageNumber ? selectedExcerpt.pdfLocation.pageNumber - 1 : undefined, provider: settings.selectionTranslationProvider, consent: settings.selectionTranslationConsent, requestId: onlineRequestId,
+            selectionContext, location: selectedExcerpt.pdfLocation?.bbox || selectedExcerpt.blockId, documentId: currentDocument.workspaceId, pdfPath: currentDocument.localPdfPath, pageIndex: selectedExcerpt.pdfLocation?.pageNumber ? selectedExcerpt.pdfLocation.pageNumber - 1 : undefined, provider: settings.selectionTranslationProvider, consent: settings.selectionTranslationConsent, requestId: onlineRequestId,
           });
           if (requestId === selectedExcerptRequestIdRef.current) {
-            setSelectedExcerptTranslation(result.cacheMatch === 'paragraph' ? `【所在句段的缓存译文】\n${result.translation}\n\n原文句段：${result.sourceText}` : result.translation);
+            setSelectedExcerptTranslation(result.translation); setSelectedExcerptReference(result.reference || null);
             setStatusMessage(result.cached ? '已读取本地译文缓存' : '译文已显示在右侧，请核查科研术语。');
           }
         } catch (error) {
-          if (requestId === selectedExcerptRequestIdRef.current) setSelectedExcerptError(error instanceof Error ? error.message : String(error));
+          if (requestId === selectedExcerptRequestIdRef.current) { setSelectedExcerptTranslation(''); setSelectedExcerptError((error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method ['"][^'"]+['"]: (?:Error: )?/, '')); }
         } finally {
           if (requestId === selectedExcerptRequestIdRef.current) { setSelectedExcerptTranslating(false); selectionRequestKeyRef.current = ''; }
           if (onlineSelectionRequestRef.current === onlineRequestId) onlineSelectionRequestRef.current = null;
@@ -1029,6 +1044,8 @@ export function useDocumentTranslation({
       }
     },
     [
+      currentDocument,
+      flatBlocks,
       onOpenPreferences,
       selectedExcerpt,
       selectionTranslationModelPreset,
@@ -1050,6 +1067,7 @@ export function useDocumentTranslation({
     setTranslationProgressCompleted(0);
     setTranslationProgressTotal(0);
     setSelectedExcerptTranslation("");
+    setSelectedExcerptReference(null);
     setSelectedExcerptTranslating(false);
     setSelectedExcerptError("");
   }, []);
@@ -1060,6 +1078,7 @@ export function useDocumentTranslation({
     onlineSelectionRequestRef.current = null;
     selectionRequestKeyRef.current = "";
     setSelectedExcerptTranslation("");
+    setSelectedExcerptReference(null);
     setSelectedExcerptTranslating(false);
     setSelectedExcerptError("");
   }, []);
@@ -1076,6 +1095,7 @@ export function useDocumentTranslation({
     resetSelectedExcerptTranslationState,
     selectedExcerptError,
     selectedExcerptTranslation,
+    selectedExcerptReference,
     selectedExcerptTranslating,
     translatedCount,
     translating,

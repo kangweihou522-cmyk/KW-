@@ -290,7 +290,7 @@ function createReferenceExchangeCommands({ store, appPaths, shell: suppliedShell
       return paper;
     },
 
-    async open_library_attachment({ paperId, attachmentId }) {
+    async open_library_attachment({ paperId, attachmentId, reveal = false }) {
       const paper = store.load().papers.find((item) => item.id === paperId);
       const attachment = paper?.attachments.find((item) => item.id === attachmentId);
       if (!attachment) throw new Error('未找到此文献的附件。');
@@ -302,6 +302,7 @@ function createReferenceExchangeCommands({ store, appPaths, shell: suppliedShell
       const stat = await fsp.stat(filePath).catch(() => null);
       if (!stat?.isFile()) throw new Error('附件文件不存在，请重新关联本地文件。');
       const shell = suppliedShell ?? require('electron').shell;
+      if (reveal === true) { shell.showItemInFolder(filePath); return { revealed: true }; }
       const error = await shell.openPath(filePath);
       if (error) throw new Error(`系统无法打开此附件：${error}`);
       return { opened: true };

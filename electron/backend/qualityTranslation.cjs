@@ -21,7 +21,7 @@ function translationPrompt(text, { source = 'English', target = 'Chinese', terms
 function localRequest(port, token, route, body, signal) {
   return new Promise((resolve, reject) => {
     const req = http.request({ hostname: '127.0.0.1', port, path: route, method: body ? 'POST' : 'GET', signal, timeout: 180000, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }, res => {
-      if (res.statusCode !== 200) { res.resume(); reject(new Error(`离线推理失败（HTTP ${res.statusCode}）。`)); } else resolve(res);
+      if (res.statusCode !== 200) { res.resume(); const error = new Error(`离线推理失败（HTTP ${res.statusCode}）。`); error.status = res.statusCode; reject(error); } else resolve(res);
     }); req.on('error', reject); req.on('timeout', () => req.destroy(new Error('离线推理超时。'))); req.end(body ? JSON.stringify(body) : undefined);
   });
 }
@@ -169,17 +169,29 @@ class QualityTranslation {
     const result = [];
     for (const chunk of chunkText(text, 1000)) {
       const output = await this.scheduler.run(async () => {
-        options.signal?.throwIfAborted(); await this.start();
-        const response = await localRequest(this.port, this.token, '/v1/chat/completions', { messages: [{ role: 'user', content: translationPrompt(chunk, options) }], temperature: 0.7, top_p: 0.6, top_k: 20, repeat_penalty: 1.05, max_tokens: 4096, stream: true }, options.signal);
-        let output = ''; let finished = false;
-        if (result.length) options.onDelta?.('\n\n');
-        await consumeSse(response, event => {
-          if (event.error) throw new Error('离线模型翻译失败。');
-          const choice = event.choices?.[0]; if (choice?.delta?.content) { output += choice.delta.content; options.onDelta?.(choice.delta.content); }
-          if (choice?.finish_reason) { if (choice.finish_reason !== 'stop') throw new Error('译文达到长度限制，未缓存截断内容。请缩短划选。'); finished = true; }
-        });
-        if (!finished || !output.trim()) throw new Error('离线模型未返回完整译文。');
-        return output;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          options.signal?.throwIfAborted(); await this.start();
+          try {
+            const response = await localRequest(this.port, this.token, '/v1/chat/completions', { messages: [{ role: 'user', content: translationPrompt(chunk, options) }], temperature: 0.7, top_p: 0.6, top_k: 20, repeat_penalty: 1.05, max_tokens: 4096, stream: true }, options.signal);
+            let output = ''; let finished = false;
+            if (result.length && !attempt) options.onDelta?.('\n\n');
+            await consumeSse(response, event => {
+              if (event.error) throw new Error('离线模型翻译失败。');
+              const choice = event.choices?.[0]; if (choice?.delta?.content) { output += choice.delta.content; options.onDelta?.(choice.delta.content); }
+              if (choice?.finish_reason) { if (choice.finish_reason !== 'stop') throw new Error('译文达到长度限制，未缓存截断内容。请缩短划选。'); finished = true; }
+            });
+            if (!finished) throw Object.assign(new Error('本机翻译连接提前结束。'), { code: 'ERR_STREAM_PREMATURE_CLOSE' });
+            if (!output.trim()) throw new Error('离线模型未返回完整译文。');
+            return output;
+          } catch (error) {
+            options.signal?.throwIfAborted();
+            const recoverable = ['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE'].includes(error.code) || error.status === 503 || /socket hang up|premature close/i.test(error.message);
+            if (!recoverable) throw error;
+            if (attempt) throw this.problem('本机翻译连接中断，自动恢复后仍未完成。请点击“立即翻译”重试，或“检查并修复高质量翻译”；已有模型和缓存会保留。', 'INFERENCE_CONNECTION_LOST');
+            options.onReset?.(result.join('\n\n') + (result.length ? '\n\n' : ''));
+            await this.stopRuntime(); options.signal?.throwIfAborted();
+          }
+        }
       }, options);
       result.push(output);
     }

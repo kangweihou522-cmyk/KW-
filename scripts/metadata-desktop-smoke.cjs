@@ -14,6 +14,7 @@ async function verifyMetadataFields(page, paper) {
   assert.equal(await editor.getByRole('textbox', { name: 'URL', exact: true }).count(), 0);
   await editor.getByRole('button', { name: '保存修改', exact: true }).click();
   await row().getByText('第一篇文献的中文标题', { exact: true }).waitFor();
+  assert(!(await row().innerText()).includes('中文标题：'), 'Cards must show custom values without their field label');
   await page.evaluate(() => window.paperquay.invoke('library_import_references', { format: 'ris', content: 'TY  - JOUR\nTI  - Separate field values fixture\nER  - \n' }));
   await page.getByRole('button', { name: '刷新', exact: true }).click();
   const second = page.locator('[data-paper-row-id]').filter({ hasText: 'Separate field values fixture' });

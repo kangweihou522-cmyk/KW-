@@ -20,12 +20,12 @@ async function fixture(t) {
     libraryDatabasePath: path.join(dataDir, 'paperquay-library.sqlite'),
   };
   const store = createLibraryStore(appPaths);
-  const opened = [];
+  const opened = []; const revealed = [];
   const commands = createReferenceExchangeCommands({ store, appPaths,
-    shell: { async openPath(value) { opened.push(value); return ''; } },
+    shell: { async openPath(value) { opened.push(value); return ''; }, showItemInFolder(value) { revealed.push(value); } },
   });
   t.after(async () => { store.close(); await rm(dataDir, { recursive: true, force: true }); });
-  return { commands, store, appPaths, opened };
+  return { commands, store, appPaths, opened, revealed };
 }
 
 const exampleXml = `<?xml version="1.0" encoding="UTF-8"?><xml><records><record>
@@ -97,6 +97,7 @@ test('local EndNote attachment references and supplements copy safely while reta
   assert.equal(store.load().papers[0].attachments.length, 2, 'content hash prevents duplicate attachments');
   assert.equal(store.load().papers[0].aiSummary, 'Report that already includes the supplement', 'unchanged duplicate does not invalidate a current report');
   assert.deepEqual(await commands.open_library_attachment({ paperId: paper.id, attachmentId: attachment.id }), { opened: true });
+  assert.deepEqual(await commands.open_library_attachment({ paperId: paper.id, attachmentId: attachment.id, reveal: true }), { revealed: true });
   assert.deepEqual(opened, [attachment.storedPath]);
   await assert.rejects(commands.open_library_attachment({ paperId: paper.id, attachmentId: 'arbitrary-path' }), /未找到/);
   const executable = path.join(appPaths.dataDir, 'untrusted.exe');
