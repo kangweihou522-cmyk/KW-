@@ -2,13 +2,13 @@
   "schema": 1,
   "product": "PaperDesk",
   "repository": "kangweihou522-cmyk/KW-",
-  "version": "0.6.3",
-  "tag": "paperdesk-v0.6.3",
-  "publishedAt": "2026-11-02T17:54:58Z",
+  "version": "0.6.4",
+  "tag": "paperdesk-v0.6.4",
+  "publishedAt": "2026-11-02T19:29:43Z",
   "asset": {
-    "name": "PaperDesk-0.6.3-Windows.zip",
-    "url": "https://github.com/kangweihou522-cmyk/KW-/releases/download/paperdesk-v0.6.3/PaperDesk-0.6.3-Windows.zip",
-    "bytes": 286411217,
-    "sha256": "746b8b817360bdc6f3e8535a04db7661ca3cad48aac8adc4ae36a320a9377794"
+    "name": "PaperDesk-0.6.4-Windows.zip",
+    "url": "https://github.com/kangweihou522-cmyk/KW-/releases/download/paperdesk-v0.6.4/PaperDesk-0.6.4-Windows.zip",
+    "bytes": 286413012,
+    "sha256": "7ae0efeaf4e2643a66d7e55a8ec6dd3fdf1940e0dc8a7c82b66d3c9be67dfec3"
   }
 }
