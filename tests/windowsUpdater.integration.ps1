@@ -96,6 +96,25 @@ try {
         if ($mode -in @('digest','foreign','network')) { Assert-UpdateTest ($fixture.Calls.Count -le 2) 'Invalid metadata allowed a program download' }
         $passed++; Write-Host "PASS $mode preserves existing program and data"
     }
+    $fixture = New-UpdateFixture 'old-channel' '0.4.1' '0.5.0'
+    $failed = $false
+    try { Invoke-FixtureUpdate $fixture } catch { $failed = $true }
+    Assert-UpdateTest $failed 'An obsolete manual-update release was accepted'
+    Assert-UpdateTest ($fixture.Calls.Count -eq 1) 'Obsolete channel downloaded an old updater'
+    Assert-OriginalPreserved $fixture
+    $passed++; Write-Host 'PASS obsolete update channel cannot restore the old manual updater'
+
+    $fixture = New-UpdateFixture 'concurrent'
+    $lock = [IO.File]::Open((Join-Path $fixture.Root '.paperdesk-update.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try {
+        $failed = $false
+        try { Invoke-FixtureUpdate $fixture } catch { $failed = $true }
+        Assert-UpdateTest $failed 'Concurrent updater was allowed to modify the installation'
+        Assert-UpdateTest ($fixture.Calls.Count -eq 0) 'Concurrent updater started a download'
+    } finally { $lock.Dispose() }
+    Assert-OriginalPreserved $fixture
+    $passed++; Write-Host 'PASS concurrent updater cannot download or modify the installation'
+
     $fixture = New-UpdateFixture 'legacy' ''
     Invoke-FixtureUpdate $fixture
     Assert-UpdateTest ((Get-Content -LiteralPath (Join-Path $fixture.Root 'app\resources\paperdesk-version.json') -Raw | ConvertFrom-Json).version -eq '0.5.1') 'Legacy installation without a version manifest was not migrated'

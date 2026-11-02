@@ -200,7 +200,7 @@
         "to": "quality-translation"
       },
       {
-        "from": "package.json",
+        "from": "release/paperdesk-version.json",
         "to": "paperdesk-version.json"
       }
     ]

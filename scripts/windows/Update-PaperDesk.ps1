@@ -24,6 +24,7 @@ function Get-PaperDeskRelease {
     catch { throw '无法连接 PaperDesk 更新服务器。请检查网络，稍后再次点击桌面 PaperDesk - Update；不需要手动下载更新包。' }
     if ($release.draft -or $release.prerelease -or [string]$release.tag_name -notmatch '^paperdesk-v(\d+\.\d+\.\d+)$') { throw '更新频道或版本信息异常，未安装其他版本。' }
     $version = $Matches[1]
+    if ([version]$version -lt [version]'0.5.1') { throw '自动更新频道尚未就绪，请稍后再试。不会安装回旧的手动更新方式。' }
     $name = "PaperDesk-$version-Windows.zip"
     $packages = @($release.assets | Where-Object { $_.name -ceq $name })
     $checksums = @($release.assets | Where-Object { $_.name -ceq 'SHA256SUMS.txt' })

@@ -1,3 +1,5 @@
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { prepareQualityRuntime } = require('../scripts/prepare-quality-translation.cjs');
 const { spawn } = require('node:child_process');
 const { prepareOfflineRuntime } = require('../scripts/prepare-offline-translation.cjs');
@@ -30,6 +32,8 @@ const platform = args.includes('--win') ? 'win32' : args.includes('--mac') ? 'da
 const arch = args.includes('--arm64') ? 'arm64' : args.includes('--x64') ? 'x64' : process.arch;
 if (platform === 'win32' || platform === 'linux') await prepareQualityRuntime(platform, arch);
 await prepareOfflineRuntime(platform, arch);
+// Use a generated descriptor: treating package.json as extraResources removes it from app.asar.
+await fs.writeFile(path.resolve(__dirname, '../release/paperdesk-version.json'), JSON.stringify({ version: require('../package.json').version, channel: 'paperdesk-stable' }));
 const child = spawn(process.execPath, [require.resolve('electron-builder/out/cli/cli.js'), ...process.argv.slice(2)], {
   stdio: 'inherit',
   env,
