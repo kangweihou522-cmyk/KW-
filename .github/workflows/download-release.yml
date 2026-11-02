@@ -95,7 +95,7 @@ jobs:
         run: node electron/build.cjs --win --dir --x64 --publish never
       - name: Verify packaged Windows program
         if: steps.version.outputs.exists != 'true'
-        run: node scripts/desktop-smoke.cjs --packaged
+        run: node scripts/desktop-smoke.cjs --packaged --quality-install
       - name: Prepare Windows ZIP, corresponding source and checksums
         if: steps.version.outputs.exists != 'true'
         run: node scripts/package-download.cjs

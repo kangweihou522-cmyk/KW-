@@ -42,6 +42,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  console.log('PASS manual report edited by section, saved with no AI account and prior version retained.');await reportDialog.getByRole('button',{name:'关闭',exact:true}).click();
  await page.reload();await page.waitForTimeout(1800);const reopened=await page.evaluate(id=>window.paperquay.invoke('paper_document_get',{paperId:id}),paper.id);assert.equal(reopened.version,2);assert.equal(reopened.content.at(-1).title,'研究设计');console.log('PASS application reload retained overview versions.');
  await verifyLibraryOverview(page,paper,home,app);
+ if(process.argv.includes('--quality-install')) await require('./translation/packaged-quality-smoke.cjs').verifyPackagedQuality(app,page);
 
  }finally{await app.close();console.log('Desktop smoke fixture:',home);}
 })().catch(e=>{console.error(e);process.exitCode=1});
