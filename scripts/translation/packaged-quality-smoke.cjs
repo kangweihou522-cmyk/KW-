@@ -9,8 +9,15 @@ async function verifyPackagedQuality(app, page) {
   await channel.selectOption('offline-quality');
   const state = () => page.evaluate(() => window.paperquay.invoke('quality_translation_status'));
   const installButton = () => page.getByRole('button', { name: /^(下载并启用 Hy-MT2 Q4|检查并继续)/ });
-  async function waitStopped() {
-    await page.waitForFunction(async () => !(await window.paperquay.invoke('quality_translation_status')).installing, null, { timeout: 180000 });
+  async function waitState(predicate, timeout = 180000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const current = await state();
+      if (predicate(current)) return current;
+      if (!current.installing && current.error && current.errorCode !== 'DOWNLOAD_PAUSED') throw new Error(current.error);
+      await page.waitForTimeout(250);
+    }
+    throw new Error(`Model state timed out: ${JSON.stringify(await state())}`);
   }
   async function setProxy(broken) {
     await app.evaluate(async ({ session }, { broken, partition }) => {
@@ -31,15 +38,14 @@ async function verifyPackagedQuality(app, page) {
     await setProxy(false);
     await installButton().click();
     await page.getByRole('progressbar', { name: '模型下载进度', exact: true }).waitFor({ timeout: 90000 });
-    await page.waitForFunction(async () => (await window.paperquay.invoke('quality_translation_status')).progress?.received >= 1048576, null, { timeout: 90000 });
+    await waitState(current => current.progress?.received >= 1048576, 90000);
     await page.getByRole('button', { name: '暂停下载（保留进度）', exact: true }).click();
-    await waitStopped();
+    await waitState(current => !current.installing);
     const partial = await state();
     assert(partial.partialBytes > 0 && partial.partialBytes < partial.expectedBytes, 'Paused model prefix was not preserved.');
     console.log('PASS actual packaged UI progress and pause retained bytes:', partial.partialBytes);
     await installButton().click();
-    await page.waitForFunction(async () => { const current = await window.paperquay.invoke('quality_translation_status'); return !current.installing && current.ready && !!current.backend; }, null, { timeout: 180000 });
-    const ready = await state();
+    const ready = await waitState(current => !current.installing && current.ready && !!current.backend);
     assert.equal(ready.bytes, 1133080448); assert.equal(ready.partialBytes, 0); assert(ready.backend);
     const translated = await page.evaluate(() => window.paperquay.invoke('selection_translate', { text: 'The sample size was 20.', source: 'English', target: 'Chinese', provider: 'offline-quality', requestId: 'packaged-real-quality' }));
     assert.match(translated.translation, /20/); assert.match(translated.translation, /[\u3400-\u9fff]/);
