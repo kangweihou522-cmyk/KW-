@@ -19,6 +19,7 @@ function Get-InstalledPaperDeskVersion([string]$Directory) {
 function Get-PaperDeskNetworkReason($Record) {
     $exception = $Record.Exception
     $message = ([string]$exception.Message -replace '[\r\n]+', ' ').Trim()
+    $message = $message -replace '(?i)(https?://)[^/\s@]+@', '$1[redacted]@'
     if ($message.Length -gt 350) { $message = $message.Substring(0, 350) }
     $status = ''
     if ($null -ne $exception.PSObject.Properties['Response'] -and $null -ne $exception.Response) {
@@ -48,7 +49,7 @@ function Invoke-PaperDeskWebRequest([string]$Uri, [string]$OutFile, [int]$Timeou
         catch { $reason = Get-PaperDeskNetworkReason $_; if ($attempt -lt 2) { Start-Sleep -Seconds 1 } }
     }
     # Windows PowerShell's HTTP stack can fail while native curl works with the configured proxy/TLS stack.
-    $curl = Get-Command curl.exe -CommandType Application -ErrorAction SilentlyContinue
+    $curl = Get-Command curl.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $curl) {
         $temporary = -not $OutFile
         $target = if ($OutFile) { $OutFile } else { [IO.Path]::GetTempFileName() }
