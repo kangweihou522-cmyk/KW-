@@ -596,7 +596,7 @@ export default function LiteraturePaperDetails({
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8f94] dark:text-[#a0a0a0]">
-              {l('文献详情', 'Paper Details')}
+              {l('文献概览', 'Paper Overview')}
             </div>
             <div className="mt-0.5 text-base font-semibold">
               {selectedPaper ? l('已选择文献', 'Selected Paper') : l('未选择', 'No Selection')}
@@ -897,7 +897,7 @@ export default function LiteraturePaperDetails({
                 <section className="pq-card p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-[#8d8d8d]">
-                      {l('AI 概览', 'AI Overview')}
+                      {l('AI 概览', 'AI Overview')} <button type="button" className="ml-2 text-xs normal-case tracking-normal underline" onClick={() => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', {detail:{paperId:selectedPaper.id,title:selectedPaper.title}}))}>{l('编辑概览与报告', 'Edit overview and report')}</button>
                     </div>
                     {overviewSections.length > 0 ? (
                       <span className="rounded-full border border-[var(--pq-accent-ring)] bg-[var(--pq-accent-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--pq-accent)]">

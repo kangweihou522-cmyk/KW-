@@ -56,8 +56,8 @@ export function textToNoteDocument(text: string): JSONContent {
 
 export function buildReportNoteRequest({
   paperId = '', title, text, source,
-}: { paperId?: string; title: string; text: string; source: 'local' | 'chatgpt-manual' }): CreateNoteRequest {
-  const sourceLabel = source === 'local'
+}: { paperId?: string; title: string; text: string; source: 'local' | 'chatgpt-manual' | 'manual' }): CreateNoteRequest {
+  const sourceLabel = source === 'manual' ? '来源：本地手工编辑，材料与证据由用户核对；未因此调用AI。' : source === 'local'
     ? '来源：本地模型生成，尚未人工核对。'
     : '来源：用户从 ChatGPT 网页手动回填；账户套餐与回答正确性未经工作站验证。';
   const content = `${sourceLabel}\n\n${text.trim()}`;
@@ -68,7 +68,7 @@ export function buildReportNoteRequest({
     content,
     contentText: content,
     contentJson: textToNoteDocument(content),
-    tags: ['读书报告', source === 'local' ? '本地AI初稿' : 'ChatGPT手动回填'],
+    tags: ['读书报告', source === 'local' ? '本地AI初稿' : source === 'manual' ? '本地编辑报告' : 'ChatGPT手动回填'],
     ...(paperId ? { linkedPaperId: paperId, linkedPaperIds: [paperId] } : {}),
   };
 }

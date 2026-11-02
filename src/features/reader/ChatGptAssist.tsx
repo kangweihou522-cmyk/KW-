@@ -1,3 +1,4 @@
+import { splitEditableReport, joinEditableReport } from './reportEditorSections';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { invoke } from '../../platform/electron/core';
@@ -15,6 +16,7 @@ interface FreeStatus { configured: boolean; model: string; fallbackEnabled: bool
 interface Version { id: string; savedAt: number; note: Note; }
 export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperId?: string; paperTitle?: string; onOpenNote?: () => void }) {
   const draft = useChatGptDraft(paperId);
+  const [sectionEditing, setSectionEditing] = useState(true);
   const [report, setReport] = useState<Note | null>(null); const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState(''); const [error, setError] = useState(''); const [manualStatus, setManualStatus] = useState('');
   const [busy, setBusy] = useState(false); const [editing, setEditing] = useState(false);
@@ -23,8 +25,12 @@ export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperI
   const [versions, setVersions] = useState<Version[]>([]); const [preview, setPreview] = useState<Version | null>(null);
   const [question, setQuestion] = useState(''); const [answer, setAnswer] = useState('');
   useEffect(() => {
+    const failed = (event: Event) => { if ((event as CustomEvent).detail?.paperId === paperId) setError('报告草稿仅保留在浏览器缓存，数据库写入失败，请及时点击保存报告。'); };
+    window.addEventListener('paperdesk:report-draft-error', failed); return () => window.removeEventListener('paperdesk:report-draft-error', failed);
+  }, [paperId]);
+  useEffect(() => {
     let active = true; setLoaded(false); setReport(null); setStatus(''); setError(''); setVersions([]); setPreview(null); setEditing(false);
-    void getChatGptReport(paperId).then(note => { if (active) { setReport(note); setLoaded(true); } }).catch(e => { if (active) setError(String(e)); });
+    void getChatGptReport(paperId).then(note => { if (active) { setReport(note); setLoaded(true); if (!note && !draft) void invoke<string>('report_existing_overview', {paperId}).then(text => { if (active && text && !localStorage.getItem(`paperdesk:chatgpt-draft:${paperId}`)) writeChatGptDraft(paperId,text); }).catch(e=>setError(String(e))); } }).catch(e => { if (active) setError(String(e)); });
     void invoke<FreeStatus>('report_provider_status').then(result => { if (active) setFree(result); }).catch(e => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, [paperId]);
@@ -65,7 +71,12 @@ export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperI
     </div>
     <p className="text-xs leading-6 text-slate-500">生成内容包括200–300字梗概和七部分读书报告。只分析可提取文字，并标明文件、物理页码和材料限制；图像、复杂公式和结论需对照原文。</p>
     {error && <p role="alert" className="break-words text-xs text-rose-600">{error}</p>}{status && <p role="status" className="text-xs leading-6 text-emerald-700">{status}</p>}
-    {(editing || !report || draft) && <div className="space-y-2"><label className="block text-xs font-medium">本地草稿 · 自动保留<textarea aria-label="读书报告本地草稿" className="pq-input mt-2 min-h-72 w-full resize-y p-3 text-sm leading-7" value={draft} onChange={e => { try { writeChatGptDraft(paperId, e.target.value); } catch { setError('草稿保存失败，请复制内容后重试。'); } }} placeholder="无须连接AI，可以直接填写梗概与读书报告。" /></label>
+    {(editing || !report || draft) && <div className="space-y-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={sectionEditing} onChange={e => setSectionEditing(e.target.checked)} />分部分编辑（标题、内容均可修改）</label>
+      {sectionEditing ? splitEditableReport(draft).map((section,index,all) => <div key={index} className="space-y-2 rounded-xl border p-3">
+        <div className="flex gap-2"><input aria-label={`报告第${index+1}部分标题`} className="pq-input min-w-0 flex-1 p-2 text-xs font-medium" value={section.title} onChange={e => { const next = [...all]; next[index] = {...section,title:e.target.value,level:section.level||2}; writeChatGptDraft(paperId,joinEditableReport(next)); }}/><button type="button" className="text-xs text-slate-500" onClick={() => writeChatGptDraft(paperId,joinEditableReport(all.filter((_,i)=>i!==index)))}>删除本部分</button></div>
+        <textarea aria-label={`报告：${section.title}`} className="pq-input min-h-36 w-full resize-y p-2 text-sm leading-7" value={section.content} onChange={e=>{const next=[...all];next[index]={...section,content:e.target.value};try{writeChatGptDraft(paperId,joinEditableReport(next));}catch{setError('草稿保存失败，请复制内容后重试。');}}}/>
+      </div>) : <label className="block text-xs font-medium">本地草稿 · 自动保留<textarea aria-label="读书报告本地草稿" className="pq-input mt-2 min-h-72 w-full resize-y p-3 text-sm leading-7" value={draft} onChange={e => { try { writeChatGptDraft(paperId, e.target.value); } catch { setError('草稿保存失败，请复制内容后重试。'); } }} placeholder="无须连接AI，可以直接填写梗概与读书报告。" /></label>}
+      <button type="button" className="pq-button p-2 text-xs" onClick={()=>writeChatGptDraft(paperId,`${draft}${draft ? '\n\n' : ''}## 自定义部分\n\n`)}>＋ 添加报告部分</button>
       <div className="flex flex-wrap gap-2"><button type="button" className="pq-button p-2" disabled={busy || !loaded || !draft.trim()} onClick={() => void run(async () => { await changed(await saveChatGptReport(paperId, paperTitle || '文献', draft, report)); setEditing(false); })}>保存报告</button><button type="button" className="pq-button p-2" disabled={busy} onClick={() => void run(async () => { setReport(await getChatGptReport(paperId)); setStatus('本地版本已重新加载，当前草稿未覆盖。'); })}>重新加载本地版本</button>{report && <button type="button" className="pq-button p-2" disabled={busy} onClick={() => { writeChatGptDraft(paperId, body(report)); setEditing(true); }}>将已保存正文载入草稿</button>}</div>
     </div>}
     {report && <details open={!editing} className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">已保存报告 · {new Date(report.updatedAt).toLocaleString()}</summary><div className="prose prose-sm mt-4 max-w-none break-words dark:prose-invert"><ReactMarkdown>{report.contentText || report.content}</ReactMarkdown></div></details>}

@@ -7,10 +7,10 @@ import type { Note } from '../types/notes';
 
 export async function getChatGptReport(paperId: string) {
   return (await listNotes({ paperId })).find((note) =>
-    (note.tags.includes('ChatGPT手动回填') || note.tags.includes('ChatGPT报告')) && note.tags.includes('读书报告')) ?? null;
+    (note.tags.includes('ChatGPT手动回填') || note.tags.includes('ChatGPT报告') || note.tags.includes('本地编辑报告')) && note.tags.includes('读书报告')) ?? null;
 }
 export async function saveChatGptReport(paperId: string, title: string, text: string, previous: Note | null) {
-  const request = buildReportNoteRequest({ paperId, title: `${title} · ChatGPT`, text, source: 'chatgpt-manual' });
+  const request = buildReportNoteRequest({ paperId, title: `${title} · ChatGPT`, text, source: 'manual' });
   const note = await invoke<Note>('notes_save_chatgpt_report', { request, expectedUpdatedAt: previous?.updatedAt ?? null, expectedContent: previous?.content ?? null });
   emitNoteChanged({ action: previous ? 'updated' : 'created', noteId: note.id, note, updatedAt: note.updatedAt });
   return note;

@@ -5,7 +5,7 @@ const { ChatGptPlan } = require('./chatGptPlan.cjs');
 const { FreeReportProvider } = require('./freeReportProvider.cjs');
 const { parseLocalPdf } = require('./localPdfParser.cjs');
 
-function isReport(note) { return note.tags.includes('读书报告') && (note.tags.includes('ChatGPT报告') || note.tags.includes('ChatGPT手动回填')); }
+function isReport(note) { return note.tags.includes('读书报告') && (note.tags.includes('ChatGPT报告') || note.tags.includes('ChatGPT手动回填') || note.tags.includes('本地编辑报告')); }
 function reportRequest(paper, text) {
   const content = `来源：ChatGPT 套餐通过官方授权接口生成，尚未人工核对。仅分析已提取文字，图像和公式请对照原文。\n\n${text}`;
   return { paperId: paper.id, title: `${paper.title} · ChatGPT`, type: 'ai-chat', content, contentText: content,
@@ -42,6 +42,7 @@ function createChatGptCommands(context) {
   context.app?.once?.('before-quit', () => bridge.close());
   function existingReport(paperId) { return noteStore.listNotes({ paperId, limit: 5000 }).find(isReport) || null; }
   return {
+    report_existing_overview({ paperId }) { return store.load().papers.find(p => p.id === paperId)?.aiSummary || ''; },
     chatgpt_status() { return bridge.account(); },
     chatgpt_connect(args) { return bridge.login(context.shell || require('electron').shell, args); },
     chatgpt_models() { return bridge.models(); },

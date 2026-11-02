@@ -18,7 +18,11 @@ jobs:
         run: node scripts/translation/quality-smoke.cjs
       - run: npm test
       - run: npm run build
+      - name: Actual Electron reading and editing checks
+        run: node scripts/desktop-smoke.cjs
       - run: node electron/build.cjs --win --dir --x64 --publish never
+      - name: Verify packaged Windows program
+        run: node scripts/desktop-smoke.cjs --packaged
       - run: node scripts/package-download.cjs
       - uses: actions/upload-artifact@v4
         with:

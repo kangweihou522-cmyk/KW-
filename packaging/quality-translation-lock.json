@@ -21,5 +21,12 @@
       "sha256": "b2c898e15db0da9433de7779e6faee9f4f6801a5c1ed1308a38bf30e492e983b",
       "bytes": 22887407
     }
+  },
+  "model": {
+    "repository": "tencent/Hy-MT2-1.8B-GGUF",
+    "revision": "a0c709d9fac510f2c807aa3af52872340dc37a4a",
+    "name": "Hy-MT2-1.8B-Q4_K_M.gguf",
+    "sha256": "dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699",
+    "bytes": 1133080448
   }
 }

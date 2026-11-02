@@ -530,7 +530,7 @@ function ReaderWorkspace(props: ReaderWorkspaceProps) {
       ) : null}
 
       {!immersiveReading && workspaceStage === 'overview' && currentDocument.source === 'native-library' ? <div className="shrink-0 border-b border-slate-200 px-4 py-1.5 text-xs">
-        <button type="button" className="pq-button px-3 py-1.5" onClick={() => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', { detail: { paperId: currentDocument.itemKey, title: currentDocument.title } }))}>{l('ChatGPT 概览 / 读书报告（本地保存）', 'ChatGPT overview / report (saved locally)')}</button>
+        <button type="button" className="pq-button px-3 py-1.5" onClick={() => window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report', { detail: { paperId: currentDocument.itemKey, title: currentDocument.title } }))}>{l('文献概览 / 读书报告（本地保存）', 'ChatGPT overview / report (saved locally)')}</button>
       </div> : null}
 
       {error ? (

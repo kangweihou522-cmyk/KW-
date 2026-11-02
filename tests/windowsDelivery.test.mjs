@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,13 +21,14 @@ test('Windows storage explicitly chooses D drive, and missing D never silently s
 
 test('application data and library do not live inside the replaced application directory', () => {
   const previous = process.env.PAPERDESK_HOME;
-  process.env.PAPERDESK_HOME = '/tmp/paperdesk-delivery';
+  const fixtureHome = path.join(os.tmpdir(), 'paperdesk-delivery');
+  process.env.PAPERDESK_HOME = fixtureHome;
   try {
     const paths = createAppPaths(app);
-    assert.equal(paths.homeDir, '/tmp/paperdesk-delivery');
-    assert.equal(paths.dataDir, '/tmp/paperdesk-delivery/data');
-    assert.equal(paths.libraryDatabasePath, '/tmp/paperdesk-delivery/data/paperquay-library.sqlite');
-    assert.equal(paths.configPath.startsWith('/tmp/paperdesk-delivery/app/'), false);
+    assert.equal(paths.homeDir, fixtureHome);
+    assert.equal(paths.dataDir, path.join(fixtureHome, 'data'));
+    assert.equal(paths.libraryDatabasePath, path.join(fixtureHome, 'data', 'paperquay-library.sqlite'));
+    assert.equal(paths.configPath.startsWith(path.join(fixtureHome, 'app') + path.sep), false);
   } finally {
     if (previous === undefined) delete process.env.PAPERDESK_HOME;
     else process.env.PAPERDESK_HOME = previous;

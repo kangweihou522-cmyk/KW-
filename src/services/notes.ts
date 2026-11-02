@@ -67,6 +67,16 @@ export async function updateNote(
 ): Promise<Note> {
   try {
     const note = await invoke<Note>('notes_update', { id, patch });
+    if (note.tags.includes('读书报告') && (note.tags.includes('ChatGPT报告') || note.tags.includes('ChatGPT手动回填') || note.tags.includes('本地编辑报告'))) {
+      const text = (note.contentText || note.content).replace(/^来源：[^\n]*\n\n/, '');
+      try {
+        await invoke('library_update_paper', { request: { paperId: note.paperId, aiSummary: text } });
+        window.dispatchEvent(new CustomEvent('paperquay:native-summary-updated', { detail: { paperId: note.paperId, aiSummary: text } }));
+      } catch {
+        // The durable note is already saved. Never report a failed save or overwrite a draft.
+        window.dispatchEvent(new CustomEvent('paperdesk:report-overview-sync-error', {detail: {paperId: note.paperId}}));
+      }
+    }
     if (!options.silent) {
       emitNoteChanged({
         action: 'updated',

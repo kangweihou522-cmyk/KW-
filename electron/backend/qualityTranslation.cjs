@@ -25,7 +25,7 @@ function localRequest(port, token, route, body, signal) {
 }
 class QualityTranslation {
   constructor(context) {
-    this.context = context; this.json = context.qualityJson || jsonRequest; this.download = context.qualityDownload || downloadResource;
+    this.lock = context.qualityLock || lock; this.context = context; this.json = context.qualityJson || jsonRequest; this.download = context.qualityDownload || downloadResource;
     this.modelDir = path.join(context.appPaths.homeDir || context.appPaths.dataDir, 'models', 'translation', 'hy-mt2-1.8b-q4');
     this.modelFile = path.join(this.modelDir, 'model.gguf'); this.child = null; this.starting = null; this.installing = null; this.queue = Promise.resolve(); this.backend = null;
     this.runtimeDir = context.qualityRuntimeDir || (context.app?.isPackaged ? path.join(process.resourcesPath, 'quality-translation') : path.resolve(__dirname, '../../release/quality-translation'));
@@ -34,11 +34,16 @@ class QualityTranslation {
   async manifest() { try { return JSON.parse(await fs.readFile(path.join(this.modelDir, 'paperdesk-model.json'), 'utf8')); } catch { return null; } }
   async status() {
     const manifest = await this.manifest(); const stat = await fs.stat(this.modelFile).catch(() => null);
+    const pinned = !this.lock.model || manifest?.sha256 === this.lock.model.sha256 && manifest?.revision === this.lock.model.revision;
     const runtimeAvailable = !!await fs.stat(this.executable('cpu')).catch(() => null);
-    return { ready: !!manifest && stat?.size === manifest.bytes && runtimeAvailable, installed: !!manifest && stat?.size === manifest.bytes, runtimeAvailable, name: 'Hy-MT2-1.8B · Q4_K_M', backend: this.backend, bytes: stat?.size || 0, experimental: true };
+    return { ready: pinned && !!manifest && stat?.size === manifest.bytes && runtimeAvailable, installed: pinned && !!manifest && stat?.size === manifest.bytes, runtimeAvailable, name: 'Hy-MT2-1.8B · Q4_K_M', backend: this.backend, bytes: stat?.size || 0, experimental: true };
   }
   async resolveModel() {
-    const base = `https://huggingface.co/api/models/${lock.modelRepository}`;
+    if (this.lock.model) {
+      const model = this.lock.model;
+      return { ...model, url: `https://huggingface.co/${model.repository}/resolve/${model.revision}/${model.name}` };
+    }
+    const base = `https://huggingface.co/api/models/${this.lock.modelRepository}`;
     const model = await this.json(`${base}?blobs=true`);
     if (!/^[a-f0-9]{40}$/.test(model.sha)) throw new Error('官方模型版本信息无效。');
     let files = model.siblings || [];
@@ -47,7 +52,7 @@ class QualityTranslation {
     const sha256 = file?.lfs?.sha256 || file?.lfs?.oid; const bytes = file?.lfs?.size || file?.size;
     const name = file?.rfilename || file?.path;
     if (!name || name.includes('..') || !/^[a-f0-9]{64}$/.test(sha256) || !(bytes > 100000000 && bytes < 3 * 1024 ** 3)) throw new Error('官方Q4_K_M模型文件或校验值未找到，未下载其他模型。');
-    return { repository: lock.modelRepository, revision: model.sha, name, sha256, bytes, url: `https://huggingface.co/${lock.modelRepository}/resolve/${model.sha}/${name.split('/').map(encodeURIComponent).join('/')}` };
+    return { repository: this.lock.modelRepository, revision: model.sha, name, sha256, bytes, url: `https://huggingface.co/${this.lock.modelRepository}/resolve/${model.sha}/${name.split('/').map(encodeURIComponent).join('/')}` };
   }
   async install(onProgress) {
     if (this.installing) return this.installing;
@@ -58,8 +63,10 @@ class QualityTranslation {
       const temp = path.join(this.modelDir, `download-${randomUUID()}.tmp`);
       try { await this.download(model.url, temp, { ...model, onProgress });
         const handle = await fs.open(temp, 'r'); const magic = Buffer.alloc(4); try { await handle.read(magic, 0, 4, 0); } finally { await handle.close(); }
+        if ((await fs.stat(temp)).size !== model.bytes || await hashFile(temp) !== model.sha256) throw new Error('模型 SHA256 或文件大小校验失败，未启用损坏模型。');
         if (magic.toString() !== 'GGUF') throw new Error('下载文件不是GGUF模型。');
         this.close(); await fs.rename(temp, this.modelFile);
+        await fs.copyFile(path.resolve(__dirname, '../../scripts/translation/LICENSE-HY-MT2'), path.join(this.modelDir, 'LICENSE-HY-MT2'));
         await fs.writeFile(path.join(this.modelDir, 'paperdesk-model.json'), JSON.stringify(model));
         onProgress?.({ received: model.bytes, total: model.bytes, stage: 'ready' }); return this.status();
       } finally { await fs.rm(temp, { force: true }); }

@@ -66,6 +66,7 @@
     "esbuild": "^0.27.0",
     "katex": "^0.16.11",
     "lucide-react": "^1.8.0",
+    "playwright-core": "1.64.1",
     "postcss": "^8.4.49",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -137,7 +138,9 @@
       "UPSTREAM.md",
       "node_modules/pdfjs-dist/**/*",
       "scripts/ocr/**/*",
-      "packaging/offline-translation-lock.json"
+      "packaging/offline-translation-lock.json",
+      "packaging/quality-translation-lock.json",
+      "scripts/translation/LICENSE-HY-MT2"
     ],
     "mac": {
       "target": "dmg",

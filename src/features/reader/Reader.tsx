@@ -1004,7 +1004,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
           batchSummaryProgress={batchSummaryProgress}
         />
       </div>
-      {reportPaper ? <div role="dialog" aria-modal="true" aria-label="ChatGPT 文献报告" className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/40 p-6" onMouseDown={() => setReportPaper(null)}>
+      {reportPaper ? <div role="dialog" aria-modal="true" aria-label="文献报告" className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/40 p-6" onMouseDown={() => setReportPaper(null)}>
         <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-5" onMouseDown={(event) => event.stopPropagation()}>
           <div className="mb-3 flex justify-between gap-4"><h2 className="font-semibold">{reportPaper.title}</h2><button type="button" onClick={() => setReportPaper(null)}>关闭</button></div>
           <ChatGptAssist key={reportPaper.id} paperId={reportPaper.id} paperTitle={reportPaper.title} onOpenNote={() => setReportPaper(null)} />
