@@ -290,6 +290,20 @@ function createReferenceExchangeCommands({ store, appPaths, shell: suppliedShell
       return paper;
     },
 
+    async library_remove_supplement({ paperId, attachmentId }) {
+      const library = store.load();
+      const paper = library.papers.find((item) => item.id === paperId);
+      if (!paper) throw new Error('文献不存在。');
+      const attachment = paper.attachments.find((item) => item.id === attachmentId);
+      if (!attachment) throw new Error('未找到此文献的补充材料，可能已被移除。请刷新列表。');
+      if (attachment.kind !== 'supplement') throw new Error('这里只能移除补充材料，不能移除主 PDF。');
+      // Unlink only. Retain source files, stored copies and edited reports.
+      paper.attachments = paper.attachments.filter((item) => item.id !== attachmentId);
+      paper.updatedAt = now();
+      await store.save(library);
+      return paper;
+    },
+
     async open_library_attachment({ paperId, attachmentId, reveal = false }) {
       const paper = store.load().papers.find((item) => item.id === paperId);
       const attachment = paper?.attachments.find((item) => item.id === attachmentId);

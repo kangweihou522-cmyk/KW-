@@ -104,6 +104,17 @@ test('local EndNote attachment references and supplements copy safely while reta
   await writeFile(executable, 'not an allowed attachment');
   await assert.rejects(commands.library_add_supplement({ paperId: paper.id, paths: [executable] }), /请选择本地/);
   assert.equal(store.load().papers[0].attachments.length, 2);
+  const primary = persisted.attachments.find(item => item.kind === 'pdf');
+  await assert.rejects(commands.library_remove_supplement({ paperId: paper.id, attachmentId: primary.id }), /主 PDF/);
+  await assert.rejects(commands.library_remove_supplement({ paperId: paper.id, attachmentId: 'not-owned' }), /未找到/);
+  const removed = await commands.library_remove_supplement({ paperId: paper.id, attachmentId: attachment.id });
+  assert.deepEqual(removed.attachments.map(item => item.id), [primary.id]);
+  const after = store.load().papers[0]; assert.deepEqual(after.attachments.map(item => item.id), [primary.id]);
+  assert.equal(after.aiSummary, 'Report that already includes the supplement');
+  assert.equal(await readFile(supplement, 'utf8'), 'group,n\ncontrol,20\n');
+  assert.equal(await readFile(attachment.storedPath, 'utf8'), 'group,n\ncontrol,20\n');
+  assert.equal(await readFile(originalPdf, 'utf8'), '%PDF-1.4\nlocal original\n');
+  await assert.rejects(commands.open_library_attachment({ paperId: paper.id, attachmentId: attachment.id }), /未找到/);
 });
 
 test('EndNote imports never resolve remote attachment URLs or XML entities', async (t) => {

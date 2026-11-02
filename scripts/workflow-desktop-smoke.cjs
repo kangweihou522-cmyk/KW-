@@ -110,7 +110,18 @@ async function verifyAttachmentFolder(page, app, paper, home) {
     await page.getByRole('button', { name: `打开所在文件夹：${attachment.fileName}`, exact: true }).click();
     assert.deepEqual(await app.evaluate(() => globalThis.folderSmokePaths), [attachment.storedPath]);
     assert.equal(await fs.readFile(attachment.storedPath, 'utf8'), 'group,n\ncontrol,20\n');
-    await page.keyboard.press('Escape'); console.log('PASS supplementary folder action selects the registered attachment and preserves its contents.');
+    const notesBefore = await page.evaluate(paperId => window.paperquay.invoke('notes_list', { request: { paperId } }), paper.id);
+    await page.getByRole('button', { name: `移除补充材料：${attachment.fileName}`, exact: true }).click();
+    await page.getByRole('button', { name: `打开 ${attachment.fileName}`, exact: true }).waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: '补充材料', exact: true }).click();
+    await page.getByRole('button', { name: '补充材料', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: `移除补充材料：${attachment.fileName}`, exact: true }).count(), 0);
+    const saved = await page.evaluate(async paperId => (await window.paperquay.invoke('library_list_papers')).find(item => item.id === paperId), paper.id);
+    assert(!saved.attachments.some(item => item.id === attachment.id)); assert(saved.attachments.some(item => item.kind === 'pdf'));
+    assert.equal(await fs.readFile(file, 'utf8'), 'group,n\ncontrol,20\n');
+    assert.equal(await fs.readFile(attachment.storedPath, 'utf8'), 'group,n\ncontrol,20\n');
+    assert.deepEqual(await page.evaluate(paperId => window.paperquay.invoke('notes_list', { request: { paperId } }), paper.id), notesBefore);
+    await page.keyboard.press('Escape'); console.log('PASS supplementary folder action and removal: attachment unlinked persistently; main PDF, files and notes retained.');
   } finally { await app.evaluate(({ shell }) => { shell.showItemInFolder = globalThis.folderSmokeOriginal; }); }
 }
 module.exports.verifyAttachmentFolder = verifyAttachmentFolder;

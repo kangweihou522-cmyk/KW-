@@ -32,6 +32,12 @@ export async function addPaperSupplements(paperId: string, paths: string[]) {
   return result;
 }
 
+export async function removePaperSupplement(paperId: string, attachmentId: string) {
+  const result = await invoke<LiteraturePaper>('library_remove_supplement', { paperId, attachmentId });
+  emitLibraryDataChanged();
+  return result;
+}
+
 export async function importJournalMetrics(content: string, format: 'json' | 'csv') {
   const result = await invoke<{ imported: number; total: number }>('library_import_journal_metrics', { content, format });
   emitLibraryDataChanged();
