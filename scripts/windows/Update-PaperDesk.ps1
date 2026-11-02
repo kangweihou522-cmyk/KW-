@@ -75,7 +75,7 @@ if ([IO.Path]::GetFileName($Installer) -notmatch '^PaperDesk.*\.zip$') { throw '
 if ($ExpectedSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw 'A valid expected SHA256 is required. No update was installed.' }
 $actual = (Get-FileHash -LiteralPath $Installer -Algorithm SHA256).Hash
 if ($actual -ne $ExpectedSha256) { throw 'SHA256 mismatch. No update was installed.' }
-Write-Host 'SHA256 校验已通过，正在验证并备份资料...' 
+Write-Host 'SHA256 校验已通过，正在验证并备份资料...'
 $installTarget = Join-Path $Root 'app'
 if (-not (Test-Path -LiteralPath (Join-Path $installTarget 'PaperDesk.exe') -PathType Leaf)) { throw 'An existing PaperDesk app was not found. Use Setup-PaperDesk for first installation.' }
 
