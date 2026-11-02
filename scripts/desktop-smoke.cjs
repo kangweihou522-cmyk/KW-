@@ -28,6 +28,14 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  await sidebar.getByRole('button',{name:'＋ 添加栏目',exact:true}).click();const titles=sidebar.getByRole('textbox',{name:'栏目标题',exact:true});await titles.last().fill('研究设计');await sidebar.getByRole('textbox',{name:'研究设计',exact:true}).fill('n=20，原PDF与笔记均保留');await sidebar.getByRole('button',{name:'保存',exact:true}).click();await sidebar.getByText(/本地版本 2/).first().waitFor();
  await page.screenshot({path:path.join(home,'reading-overview.png')});
  console.log('PASS actual Electron: large PDF, progress toggle, 2 continuous highlights, undo/redo, save/reopen clean, overview edit and custom sections persisted.');
+ await page.evaluate(p=>window.dispatchEvent(new CustomEvent('paperdesk:open-chatgpt-report',{detail:{paperId:p.id,title:p.title}})),paper);
+ const reportDialog=page.getByRole('dialog',{name:'文献报告',exact:true});await reportDialog.waitFor();
+ await reportDialog.getByRole('textbox',{name:'报告：梗概与报告',exact:true}).fill('本地手工报告：n=20。\n\n## 1. 背景与问题\n\n这是交互测试，不是真实科研结论。');
+ await reportDialog.getByRole('button',{name:'保存报告',exact:true}).click();await reportDialog.getByText('已保存到本地，历史版本保留。阅读和编辑无需请求模型。',{exact:true}).waitFor();
+ const savedReport=await page.evaluate(async id=>(await window.paperquay.invoke('notes_list',{request:{paperId:id}})).find(n=>n.tags.includes('本地编辑报告')),paper.id);assert(savedReport.content.includes('n=20'));assert(!savedReport.content.includes('来源：用户从 ChatGPT 网页'));
+ await reportDialog.getByRole('button',{name:'手工编辑',exact:true}).click();await reportDialog.getByRole('textbox',{name:'报告：梗概与报告',exact:true}).fill('修订后的本地梗概：n=21。\n\n');await reportDialog.getByRole('button',{name:'保存报告',exact:true}).click();await reportDialog.getByText('已保存到本地，历史版本保留。阅读和编辑无需请求模型。',{exact:true}).waitFor();
+ const revisions=await page.evaluate(id=>window.paperquay.invoke('notes_versions',{id}),savedReport.id);assert.equal(revisions.length,2);assert(revisions[1].note.content.includes('n=20'));assert(revisions[0].note.content.includes('n=21'));
+ console.log('PASS manual report edited by section, saved with no AI account and prior version retained.');await reportDialog.getByRole('button',{name:'关闭',exact:true}).click();
  await page.reload();await page.waitForTimeout(1800);const reopened=await page.evaluate(id=>window.paperquay.invoke('paper_document_get',{paperId:id}),paper.id);assert.equal(reopened.version,2);assert.equal(reopened.content.at(-1).title,'研究设计');console.log('PASS application reload retained overview versions.');
 
  }finally{await app.close();console.log('Desktop smoke fixture:',home);}

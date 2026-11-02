@@ -1,17 +1,46 @@
-# 离线划词翻译
+# 离线翻译与科研术语（0.5.0）
 
-使用 Argos 的英语 → 中文专用机器翻译模型，通过 CTranslate2 CPU int8 推理，SentencePiece 分词，pySBD 分句。它不运行 Ollama，不需要 ChatGPT、Codex、API 密钥或海外手机号，也没有在线翻译配额。不是通用大模型，不能代替文献分析或自动生成报告。
+## 日常使用
 
-Windows 更新包自带独立 Python 和翻译运行组件，不改动系统 Python。打开 PDF 右侧“翻译”，选择“离线专用翻译”，点击“下载并启用英中翻译”。英中语言包约 68 MB，首次下载需要网络；校验与安装成功后，划选结束自动展开右侧译文栏，按句更新并将结果缓存到本地。
+打开PDF后，右侧“实时翻译”可选择两个独立离线引擎。划选结束后自动显示译文；选择新文本会取消旧请求，完成结果存入本地缓存。在线翻译默认不启用。
 
-语言包保存在 `D:\PaperDesk\models\translation\argos-en-zh-1.9`，位于可替换的 `app` 之外。更新程序保留已有包；不重新下载 Ollama 模型。译文缓存位于 `data\.selection-translations`，再次阅读可以复用。离线翻译不要求在线发送同意；切换到在线渠道仍需要显式开启。
+| 引擎 | 首次语言包 | 适用方式 |
+|---|---:|---|
+| 快速离线英中 | 70,743,021字节，约68MiB | 轻量CPU翻译，仅英→中，保留原有模型与缓存 |
+| Hy-MT2-1.8B Q4_K_M | 1,133,080,448字节，约1.06GiB | 更高质量的专用翻译模型，多语言、术语要求；先尝试Vulkan，启动失败后使用CPU |
 
-当前只支持英语 → 中文。输入最多 40000 字符，长句按完整分词序列拆块，避免引擎默认输入长度造成静默截断。PDF 换行做基本整理，段落分隔保留；内置有限的源文触发科研术语校正，不保证覆盖全部领域。复杂公式、术语、数字和统计结论仍需人工核对。速度取决于句长和 CPU，不承诺零延迟或等同 ChatGPT 的科研翻译质量。
+在翻译设置中选择引擎，点击下载并启用。程序自带运行组件，无需安装Python、Ollama或执行命令。模型保存在程序目录外的 `models\translation`，后续更新程序可以复用。RTX3060通常可使用已有NVIDIA驱动的Vulkan能力，实际速度仍以你的电脑为准。
 
-安装只接受固定来源、固定版本及 SHA256 的语言包。先校验下载，再检查 ZIP 路径和所需组件，最后替换独立语言包目录；失败保留原有模型。运行中分句检查取消标记，旧请求不能覆盖新选区。翻译进程不含网络、账户登录或命令工具。
+下载仅来自登记的官方来源；模型使用固定版本、大小与SHA256核对。下载失败或校验失败不启用损坏模型，不切换在线服务。快速引擎始终保留，可随时切回。安装高质量包需要约1.13GB下载流量及足够的模型空间；运行还需要内存/显存。
 
-开发与来源：
+## 术语表
 
-- [Argos Translate](https://github.com/argosopentech/argos-translate) 与[官方语言包索引](https://github.com/argosopentech/argospm-index)。原始 OPUS 模型为 CC BY 4.0；原包不改动地发布，安装保留原始 README。作者 Jörg Tiedemann、Santhosh Thottingal 及 EAMT 2020 论文署名与许可链接见 `packaging/MODEL-EN-ZH-NOTICE.txt` 和运行目录 `MODEL-LICENSE.txt`。
-- [CTranslate2](https://github.com/OpenNMT/CTranslate2)、[SentencePiece](https://github.com/google/sentencepiece)、[pySBD](https://github.com/nipunsadvilkar/pySBD)。运行包包含各组件随发行物提供的许可证，固定工件来源与哈希见 `packaging/offline-translation-lock.json`。
-- Linux 开发先创建 Python 3.12 虚拟环境，安装 `scripts/translation/requirements.txt`，设置 `PAPERDESK_TRANSLATION_PYTHON` 为其绝对解释器路径。Windows 包由官方 Python Software Foundation NuGet 包与 PyPI Windows wheels 组装，各文件在解包前按锁定 SHA256 校验。
+展开“科研术语表”，每行填写 `原文 = 译文`，例如：
+
+```text
+Lactobacillus = 乳杆菌属
+confidence interval = 置信区间
+randomized controlled trial = 随机对照试验
+```
+
+术语表本地保存，Hy-MT2和ChatGPT翻译会附上匹配术语要求。修改后使用新的缓存键。快速引擎继续保留有限的科研术语清理，不把它冒充支持任意强制术语。科研准确性、菌种名称和统计解释仍须对照原文。
+
+## 固定模型与运行组件
+
+- 官方仓库：`tencent/Hy-MT2-1.8B-GGUF`
+- 版本：`a0c709d9fac510f2c807aa3af52872340dc37a4a`
+- 文件：`Hy-MT2-1.8B-Q4_K_M.gguf`
+- SHA256：`dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699`
+- llama.cpp：`b12034`，分别校验Windows CPU与Vulkan组件；不使用1.25bit实验量化包。
+- 模型许可：Apache-2.0，原许可证随程序及下载模型保留。llama.cpp自带许可随运行组件保留。
+
+真实Windows runner检查：加载约3.3秒，三条短句约0.54–1.64秒；样本量、百分数、置信区间、P值、否定与自定义术语通过。此结果不是RTX3060实测，也不能代表完整医学文献准确率。
+
+## 可选在线渠道
+
+- **DeepL API Free**：需要自己的Free密钥，限官方Free端点，不切换Pro。当前额度与开户条件以[DeepL控制台](https://www.deepl.com/pro-api)为准。
+- **百度通用翻译**：自行在[官方平台](https://fanyi-api.baidu.com/)取得APP ID/密钥；核实免费额度并关闭超额付费后启用。在工作站另设不超过剩余免费额度的月字符上限。该本机计数不包含其他应用用量，请勿把它当作服务端免收费保证。
+- **ChatGPT套餐**：独立授权后可用，但不建议用作每次日常划词的默认渠道。
+- **MyMemory**：单次500 UTF-8字节的低配额备用。
+
+这些在线渠道会收到划选文字，需要你主动选择并开启。密钥由Windows系统安全存储加密；无法安全保存时不写入明文。额度不足或服务失败会报错，已保存内容保留。

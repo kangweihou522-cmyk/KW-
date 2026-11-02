@@ -42,6 +42,19 @@ function createChatGptCommands(context) {
   context.app?.once?.('before-quit', () => bridge.close());
   function existingReport(paperId) { return noteStore.listNotes({ paperId, limit: 5000 }).find(isReport) || null; }
   return {
+    async report_recoveries({ paperId }) {
+      if (!store.load().papers.some(p => p.id === paperId)) throw new Error('文献不存在。');
+      const directory = path.join(appPaths.dataDir, '.chatgpt-reports');
+      const names = await fs.readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+      const result = [];
+      for (const name of names.filter(n => /^[a-f0-9]{64}\.json$/.test(n))) {
+        const file = path.join(directory, name); const stat = await fs.stat(file);
+        if (stat.size > 12 * 1024 * 1024) continue;
+        const value = JSON.parse(await fs.readFile(file, 'utf8'));
+        if (value.paperId === paperId && typeof value.text === 'string') result.push({ id: name, text: value.text, warnings: value.warnings, savedAt: stat.mtimeMs });
+      }
+      return result.sort((a,b) => b.savedAt - a.savedAt);
+    },
     report_existing_overview({ paperId }) { return store.load().papers.find(p => p.id === paperId)?.aiSummary || ''; },
     chatgpt_status() { return bridge.account(); },
     chatgpt_connect(args) { return bridge.login(context.shell || require('electron').shell, args); },

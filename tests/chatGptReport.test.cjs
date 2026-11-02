@@ -21,5 +21,5 @@ test('a connected report cannot overwrite a note edited while the model was runn
  const original=f.noteStore.createNote({paperId:f.paper.id,title:'Original',type:'ai-chat',content:'Keep my edits',tags:['读书报告','ChatGPT手动回填']});
  const pending=f.commands.chatgpt_generate_report({paperId:f.paper.id,force:true});const rejected=assert.rejects(pending,/未覆盖/);await ready;
  f.noteStore.updateNote({id:original.id,patch:{content:'New manual edit'}});release('Generated fictional report');await rejected;
- assert.equal(f.noteStore.getNote({id:original.id}).content,'New manual edit');assert.equal((await fs.readdir(path.join(f.appPaths.dataDir,'.chatgpt-reports'))).length,1);
+ assert.equal(f.noteStore.getNote({id:original.id}).content,'New manual edit');assert.equal((await fs.readdir(path.join(f.appPaths.dataDir,'.chatgpt-reports'))).length,1);assert.equal((await f.commands.report_recoveries({paperId:f.paper.id}))[0].text,'Generated fictional report');
 });

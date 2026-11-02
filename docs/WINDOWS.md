@@ -1,6 +1,6 @@
 # Windows 11 本地安装与更新
 
-PaperDesk 是 PaperQuay 派生的独立版本。阅读、笔记、批注和默认离线英中翻译不要求 ChatGPT/Codex 登录，也不启动 Ollama。ChatGPT 网页可以单独使用；自动报告和问答使用可选的官方 Codex 授权，可能要求手机号验证。Plus/普通账户不附带免费 API，不配置付费 API 或购买额度。
+PaperDesk是PaperQuay派生的独立版本。阅读、笔记、批注和离线翻译无需登录或Ollama。0.5.0自动报告采用官方开源本地应用ChatGPT套餐授权，运行时不依赖Codex；可选OpenRouter免费模型备用。账户资格、手机号和额度仍由服务方决定；已保存内容不受连接状态影响。
 
 ## 安装位置
 
@@ -62,4 +62,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Setup-
 
 ## 当前验证范围
 
-Windows 路径选择和更新隔离已经通过跨平台 Node 测试；PowerShell 脚本按 Windows PowerShell 5.1 语法编写并保存 UTF-8 BOM。当前开发机是 Linux，尚未在你的 Windows 电脑执行安装、快捷键和恢复操作，因此不将这些步骤标为已在 Windows 实测。
+Windows 路径选择和更新隔离已经通过跨平台 Node 测试；PowerShell 脚本按 Windows PowerShell 5.1 语法编写并保存 UTF-8 BOM。公开仓库标准Windows runner已验证翻译模型、实际Electron与打包后程序；尚未在你的个人电脑执行安装、快捷键和恢复操作，不把runner结果当作本人电脑验收。

@@ -52,10 +52,10 @@ export function SelectionTranslationControls() {
   const configured = isOffline ? offline?.ready === true : settings.selectionTranslationConsent;
   const names = { offline: '快速离线翻译 · 英→中', 'offline-quality': '高质量离线翻译 · Hy-MT2', baidu: '百度通用翻译', chatgpt: 'ChatGPT 账户', 'deepl-free': 'DeepL API Free', mymemory: 'MyMemory', local: '本地模型' };
 
-  async function install() {
+  async function install(repair = false) {
     setInstalling(true); setStatus('正在下载并校验英中语言包…'); setProgress(null);
     try {
-      const result = await invoke<OfflineStatus>(provider === 'offline-quality' ? 'quality_translation_install' : 'offline_translation_install');
+      const result = await invoke<OfflineStatus>(provider === 'offline-quality' ? 'quality_translation_install' : 'offline_translation_install', { force: repair });
       setOffline(result);
       if (!result.ready) throw new Error(result.error || '语言包已保存，但离线组件未就绪，请检查完整更新包。');
       updateSetting('autoTranslateSelection', true);
@@ -82,7 +82,7 @@ export function SelectionTranslationControls() {
       </label>
       {isOffline ? <div className="space-y-2">
         <p>{provider === 'offline-quality' ? 'Hy-MT2-1.8B Q4_K_M 专用翻译模型，优先使用显卡，兼容时回退CPU。首次下载约1–2GB，具体以官方文件为准；首次加载需要时间。科研准确性需对照原文。' : '英语 → 中文，使用轻量专用机器翻译引擎。'}下载一次语言包后在本机运行，无需 ChatGPT、Codex、Ollama 或在线配额；选中文字不会发送到云端。科研术语、公式仍需对照原文。</p>
-        {offline?.ready ? <p className="text-emerald-700">英中语言包已就绪 · 以后更新程序可继续复用</p> : <>
+        {offline?.ready ? <div className="space-y-2"><p className="text-emerald-700">离线语言包已就绪 · 更新程序可继续复用</p>{provider === 'offline-quality' && <button type="button" className="pq-button px-2 py-1" disabled={installing} onClick={() => void install(true)}>重新下载 / 修复高质量语言包</button>}</div> : <>
           <button type="button" className="pq-button px-3 py-2" disabled={installing || offline?.runtimeAvailable === false} onClick={() => void install()}>
             {installing ? '正在安装…' : `下载并启用${provider === 'offline-quality' ? 'Hy-MT2 Q4（约1–2GB）' : '英中翻译'}${offline?.packageBytes ? `（${Math.ceil(offline.packageBytes / 1048576)} MB，仅一次）` : '（仅一次）'}`}
           </button>

@@ -27,7 +27,7 @@ class QualityTranslation {
   constructor(context) {
     this.lock = context.qualityLock || lock; this.context = context; this.json = context.qualityJson || jsonRequest; this.download = context.qualityDownload || downloadResource;
     this.modelDir = path.join(context.appPaths.homeDir || context.appPaths.dataDir, 'models', 'translation', 'hy-mt2-1.8b-q4');
-    this.modelFile = path.join(this.modelDir, 'model.gguf'); this.child = null; this.starting = null; this.installing = null; this.queue = Promise.resolve(); this.backend = null;
+    this.modelFile = path.join(this.modelDir, 'model.gguf'); this.child = null; this.starting = null; this.installing = null; this.queue = Promise.resolve(); this.backend = null; this.failure = '';
     this.runtimeDir = context.qualityRuntimeDir || (context.app?.isPackaged ? path.join(process.resourcesPath, 'quality-translation') : path.resolve(__dirname, '../../release/quality-translation'));
   }
   executable(backend) { return path.join(this.runtimeDir, backend, process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'); }
@@ -36,7 +36,7 @@ class QualityTranslation {
     const manifest = await this.manifest(); const stat = await fs.stat(this.modelFile).catch(() => null);
     const pinned = !this.lock.model || manifest?.sha256 === this.lock.model.sha256 && manifest?.revision === this.lock.model.revision;
     const runtimeAvailable = !!await fs.stat(this.executable('cpu')).catch(() => null);
-    return { ready: pinned && !!manifest && stat?.size === manifest.bytes && runtimeAvailable, installed: pinned && !!manifest && stat?.size === manifest.bytes, runtimeAvailable, name: 'Hy-MT2-1.8B · Q4_K_M', backend: this.backend, bytes: stat?.size || 0, experimental: true };
+    return { error: this.failure, ready: !this.failure && pinned && !!manifest && stat?.size === manifest.bytes && runtimeAvailable, installed: pinned && !!manifest && stat?.size === manifest.bytes, runtimeAvailable, name: 'Hy-MT2-1.8B · Q4_K_M', backend: this.backend, bytes: stat?.size || 0, experimental: true };
   }
   async resolveModel() {
     if (this.lock.model) {
@@ -54,10 +54,10 @@ class QualityTranslation {
     if (!name || name.includes('..') || !/^[a-f0-9]{64}$/.test(sha256) || !(bytes > 100000000 && bytes < 3 * 1024 ** 3)) throw new Error('官方Q4_K_M模型文件或校验值未找到，未下载其他模型。');
     return { repository: this.lock.modelRepository, revision: model.sha, name, sha256, bytes, url: `https://huggingface.co/${this.lock.modelRepository}/resolve/${model.sha}/${name.split('/').map(encodeURIComponent).join('/')}` };
   }
-  async install(onProgress) {
+  async install(onProgress, force = false) {
     if (this.installing) return this.installing;
     this.installing = (async () => {
-      if ((await this.status()).ready) return this.status();
+      if (!force && (await this.status()).ready) return this.status();
       if (!(await this.status()).runtimeAvailable) throw new Error('高质量翻译运行组件缺失，请安装完整更新包。');
       const model = await this.resolveModel(); await fs.mkdir(this.modelDir, { recursive: true });
       const temp = path.join(this.modelDir, `download-${randomUUID()}.tmp`);
@@ -68,6 +68,7 @@ class QualityTranslation {
         this.close(); await fs.rename(temp, this.modelFile);
         await fs.copyFile(path.resolve(__dirname, '../../scripts/translation/LICENSE-HY-MT2'), path.join(this.modelDir, 'LICENSE-HY-MT2'));
         await fs.writeFile(path.join(this.modelDir, 'paperdesk-model.json'), JSON.stringify(model));
+        this.failure = '';
         onProgress?.({ received: model.bytes, total: model.bytes, stage: 'ready' }); return this.status();
       } finally { await fs.rm(temp, { force: true }); }
     })().finally(() => { this.installing = null; }); return this.installing;
@@ -82,7 +83,7 @@ class QualityTranslation {
         try { await this.launch(backend); this.backend = backend; return; } catch { this.child?.kill(); this.child = null; }
       }
       throw new Error('高质量翻译组件启动失败，当前模型可能需要更新的运行内核。可切回快速离线翻译。');
-    })().catch(error => { this.starting = null; throw error; }); return this.starting;
+    })().catch(error => { this.failure = error.message; this.starting = null; throw error; }); return this.starting;
   }
   async launch(backend) {
     const server = net.createServer(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); const port = server.address().port; await new Promise(resolve => server.close(resolve));
@@ -103,13 +104,14 @@ class QualityTranslation {
         if (options.signal?.aborted) throw new Error('请求已取消。');
         const response = await localRequest(this.port, this.token, '/v1/chat/completions', { messages: [{ role: 'user', content: translationPrompt(chunk, options) }], temperature: 0.7, top_p: 0.6, top_k: 20, repeat_penalty: 1.05, max_tokens: 4096, stream: true }, options.signal);
         let output = ''; let finished = false;
+        if (result.length) options.onDelta?.('\n\n');
         await consumeSse(response, event => {
           if (event.error) throw new Error('离线模型翻译失败。');
-          const choice = event.choices?.[0]; if (choice?.delta?.content) output += choice.delta.content;
+          const choice = event.choices?.[0]; if (choice?.delta?.content) { output += choice.delta.content; options.onDelta?.(choice.delta.content); }
           if (choice?.finish_reason) { if (choice.finish_reason !== 'stop') throw new Error('译文达到长度限制，未缓存截断内容。请缩短划选。'); finished = true; }
         });
         if (!finished || !output.trim()) throw new Error('离线模型未返回完整译文。');
-        if (result.length) options.onDelta?.('\n\n'); result.push(output.trim()); options.onDelta?.(output.trim());
+        result.push(output);
       }
       return result.join('\n\n');
     }); this.queue = task; return task;
@@ -118,6 +120,6 @@ class QualityTranslation {
 }
 function createQualityTranslationCommands(context) {
   const engine = context.qualityTranslation;
-  return { quality_translation_status: () => engine.status(), quality_translation_install: (args, event) => engine.install(progress => { if (event?.sender && !event.sender.isDestroyed()) event.sender.send('paperquay:event', 'paperdesk:quality-translation-install-progress', progress); }) };
+  return { quality_translation_status: () => engine.status(), quality_translation_install: (args, event) => engine.install(progress => { if (event?.sender && !event.sender.isDestroyed()) event.sender.send('paperquay:event', 'paperdesk:quality-translation-install-progress', progress); }, args?.force === true) };
 }
 module.exports = { QualityTranslation, createQualityTranslationCommands, translationPrompt, chunkText };

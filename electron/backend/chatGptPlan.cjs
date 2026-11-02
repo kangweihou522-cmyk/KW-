@@ -7,7 +7,7 @@ const ISSUER = 'https://auth.openai.com';
 const RESOURCE = 'https://api.openai.com/v1';
 const scopes = 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct';
 const empty = () => ({ hostId: `urn:uuid:${randomUUID()}`, accounts: [], selectedId: null });
-function same(a, b) { return typeof a === 'string' && typeof b === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
+function same(a, b) { if (typeof a !== 'string' || typeof b !== 'string') return false; const left = Buffer.from(a); const right = Buffer.from(b); return left.length === right.length && timingSafeEqual(left, right); }
 function validateIdToken(token, { jwks, clientId, nonce, subject, now = Date.now() }) {
   try {
     const parts = token.split('.'); if (parts.length !== 3) throw new Error();
