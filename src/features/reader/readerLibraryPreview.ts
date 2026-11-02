@@ -1,3 +1,4 @@
+import { readPreparedSource } from '../../services/preparedSource';
 import {
   readLocalBinaryFile,
   readLocalTextFile,
@@ -235,6 +236,8 @@ export async function loadReaderLibraryPreviewBlocks({
   notLoadedText: string;
 }): Promise<LibraryPreviewLoadResult> {
   const pdfName = item.localPdfPath ? getFileNameFromPath(item.localPdfPath) : noPdfLoadedText;
+  const prepared = await readPreparedSource(item);
+  if (prepared) return { blocks: flattenMineruPages(parseMineruPages(prepared.pages)), currentPdfName: pdfName, currentJsonName: getFileNameFromPath(prepared.jsonPath), statusMessage: l('已恢复一键处理的本地解析结果', 'Restored the prepared local PDF text'), markdownText: prepared.markdown };
 
   if (settings.mineruCacheDir.trim()) {
     for (const cachePaths of buildMineruCachePathCandidates(settings.mineruCacheDir.trim(), item)) {

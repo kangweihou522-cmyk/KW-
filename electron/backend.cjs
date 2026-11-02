@@ -1,3 +1,5 @@
+const { TranslationMemory } = require('./backend/translationMemory.cjs');
+const { createPreparationCommands } = require('./backend/paperPreparation.cjs');
 const { QualityTranslation, createQualityTranslationCommands } = require('./backend/qualityTranslation.cjs');
 const { ChatGptPlan } = require('./backend/chatGptPlan.cjs');
 const { createChatGptCommands } = require('./backend/chatGptCommands.cjs');
@@ -90,6 +92,7 @@ function createBackend({ app }) {
   context.chatGptBridge = new ChatGptPlan(context);
   context.offlineTranslation = new OfflineTranslation(context);
   context.qualityTranslation = new QualityTranslation(context);
+  context.translationMemory = new TranslationMemory(context);
   app?.once?.('before-quit', () => context.offlineTranslation.close());
   const fileCommands = createFileCommands(context);
   context.fileCommands = fileCommands;
@@ -110,6 +113,8 @@ function createBackend({ app }) {
     ...createQualityTranslationCommands(context),
     ...createSelectionTranslationV2(context),
   };
+
+  Object.assign(commands, createPreparationCommands(context, commands));
 
   return {
     close() {

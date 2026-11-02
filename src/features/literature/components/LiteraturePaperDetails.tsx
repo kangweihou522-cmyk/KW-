@@ -14,6 +14,7 @@ import { LibraryPopover } from './LibraryPopover';
 import LiteratureReadingTimeChart from './LiteratureReadingTimeChart';
 import PaperLocalResources from './PaperLocalResources';
 import { PaperMetadataEditor } from './PaperMetadataEditor';
+import { PaperPreparationControls } from './PaperPreparationControls';
 import { PaperAiOverview } from './PaperAiOverview';
 
 interface LiteraturePaperDetailsProps {
@@ -50,7 +51,7 @@ export default function LiteraturePaperDetails({ selectedPaper, saving, onOpenPa
   const toggle = (kind: 'pipeline' | 'resources' | 'reading', anchor: HTMLElement) => setMenu(current => current?.kind === kind ? null : { kind, anchor });
   const actions = [
     { kind: 'mineru', label: l('本地解析', 'Local parsing'), icon: Sparkles, handler: onRunMineruParse, tour: 'overview-mineru-parse' },
-    { kind: 'translation', label: l('全文翻译', 'Full translation'), icon: Languages, handler: onTranslatePaper, tour: 'overview-translate-document' },
+    { kind: 'translation', label: l('全文翻译', 'Full translation'), icon: Languages, handler: (paper: LiteraturePaper) => window.dispatchEvent(new CustomEvent('paperdesk:prepare-paper', { detail: { paperId: paper.id, mode: 'translation' } })), tour: 'overview-translate-document' },
     { kind: 'overview', label: l('生成 AI 概览', 'Generate AI overview'), icon: FileText, handler: onGenerateSummary, tour: 'generate-summary' },
   ];
   return <aside ref={rootRef} onWheelCapture={handleWheelCapture} className="pq-library-pane flex h-full min-h-0 flex-col overflow-hidden border-l" data-paper-details>
@@ -69,6 +70,7 @@ export default function LiteraturePaperDetails({ selectedPaper, saving, onOpenPa
       {selectedPaper ? <div className="space-y-3">
         {error && <p role="alert" className="break-words text-xs text-rose-600">{error}</p>}
         {actionState && actionState.status !== 'success' && <div role={actionState.status === 'error' ? 'alert' : 'status'} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-5 ${actionState.status === 'error' ? 'border-rose-200 text-rose-600' : 'border-[var(--pq-accent-border)] text-[var(--pq-accent)]'}`}>{actionState.status === 'running' && <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />}<span className="break-words">{actionState.message || actionState.label}</span></div>}
+        <PaperPreparationControls key={`prepare:${selectedPaper.id}`} paper={selectedPaper} />
         <PaperPersonalOverview key={`personal:${selectedPaper.id}`} paperId={selectedPaper.id} />
         <PaperAiOverview key={`ai:${selectedPaper.id}`} paper={selectedPaper} />
       </div> : <div className="pq-card border-dashed p-8 text-center text-sm text-[var(--pq-text-muted)]">{l('选择一篇文献查看概览。', 'Select a paper to view its overview.')}</div>}

@@ -43,3 +43,12 @@ export async function translateTextOpenAICompatible(
     throw new Error(toErrorMessage(error, "调用 OpenAI 兼容划词翻译接口失败"));
   }
 }
+
+export async function translateBlocksQuality(options: OpenAICompatibleTranslateOptions, documentId: string, pdfPath?: string | null): Promise<TranslationBlockOutput[]> {
+  const result: TranslationBlockOutput[] = [];
+  for (const block of options.blocks) {
+    const value = await invoke<{ translation: string }>('quality_translate_block', { text: block.text, documentId, pdfPath, source: options.sourceLanguage, target: options.targetLanguage });
+    result.push({ blockId: block.blockId, translatedText: value.translation });
+  }
+  return result;
+}

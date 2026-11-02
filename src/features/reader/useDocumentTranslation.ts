@@ -12,6 +12,7 @@ import {
 import { extractTranslatableMarkdownFromMineruBlock } from "../../services/mineru";
 import {
   translateBlocksOpenAICompatible,
+  translateBlocksQuality,
   translateTextOpenAICompatible,
 } from "../../services/translation";
 import type {
@@ -343,7 +344,7 @@ export function useDocumentTranslation({
       return;
     }
 
-    if (!translationModelPreset || !translationModelPreset.baseUrl.trim()) {
+    if (settings.selectionTranslationProvider !== 'offline-quality' && (!translationModelPreset || !translationModelPreset?.baseUrl?.trim())) {
       onOpenPreferences();
       const message = lRef.current(
         "请先在设置中选择本地模型及地址",
@@ -403,14 +404,14 @@ export function useDocumentTranslation({
       }
 
       const result = await translateBlocksBestEffort({
-        apiKey: translationModelPreset.apiKey.trim(),
-        apiMode: translationModelPreset.apiMode,
-        baseUrl: translationModelPreset.baseUrl,
+        apiKey: translationModelPreset?.apiKey.trim() || '',
+        apiMode: translationModelPreset?.apiMode,
+        baseUrl: translationModelPreset?.baseUrl || '',
         batchSize: Math.max(1, settings.translationBatchSize),
         blocks: blocksToTranslate,
         concurrency: Math.max(1, settings.translationConcurrency),
-        existingTranslations: resumedTranslations,
-        model: translationModelPreset.model,
+        existingTranslations: settings.selectionTranslationProvider === 'offline-quality' ? {} : resumedTranslations,
+        model: translationModelPreset?.model || 'Hy-MT2',
         onProgress: async (progress) => {
           if (
             documentTranslationRequestIdRef.current !== requestId ||
@@ -452,7 +453,7 @@ export function useDocumentTranslation({
         sourceLanguage: settings.translationSourceLanguage,
         targetLanguage: settings.translationTargetLanguage,
         temperature: getModelRuntimeConfig(settings, "translation").temperature,
-        translateBatch: translateBlocksOpenAICompatible,
+        translateBatch: settings.selectionTranslationProvider === 'offline-quality' ? options => translateBlocksQuality(options, currentDocument.workspaceId, currentDocument.localPdfPath) : translateBlocksOpenAICompatible,
       });
 
       if (documentTranslationRequestIdRef.current !== requestId) {
@@ -623,7 +624,7 @@ export function useDocumentTranslation({
         return;
       }
 
-      if (!translationModelPreset || !translationModelPreset.baseUrl.trim()) {
+      if (settings.selectionTranslationProvider !== 'offline-quality' && (!translationModelPreset || !translationModelPreset?.baseUrl?.trim())) {
         onOpenPreferences();
         const message = lRef.current(
           "请先在设置中选择本地模型及地址",
@@ -656,14 +657,14 @@ export function useDocumentTranslation({
 
       try {
         const result = await translateBlocksBestEffort({
-          apiKey: translationModelPreset.apiKey.trim(),
-          apiMode: translationModelPreset.apiMode,
-          baseUrl: translationModelPreset.baseUrl,
+          apiKey: translationModelPreset?.apiKey.trim() || '',
+          apiMode: translationModelPreset?.apiMode,
+          baseUrl: translationModelPreset?.baseUrl || '',
           batchSize: 1,
           blocks: [blockToTranslate],
           concurrency: 1,
           existingTranslations: {},
-          model: translationModelPreset.model,
+          model: translationModelPreset?.model || 'Hy-MT2',
           onProgress: async (progress) => {
             if (
               documentTranslationRequestIdRef.current !== requestId ||
@@ -696,7 +697,7 @@ export function useDocumentTranslation({
           sourceLanguage: settings.translationSourceLanguage,
           targetLanguage: settings.translationTargetLanguage,
           temperature: getModelRuntimeConfig(settings, "translation").temperature,
-          translateBatch: translateBlocksOpenAICompatible,
+          translateBatch: settings.selectionTranslationProvider === 'offline-quality' ? options => translateBlocksQuality(options, currentDocument.workspaceId, currentDocument.localPdfPath) : translateBlocksOpenAICompatible,
         });
 
         if (documentTranslationRequestIdRef.current !== requestId) {
@@ -868,12 +869,12 @@ export function useDocumentTranslation({
         selectionRequestKeyRef.current = selectionRequestKey;
         setSelectedExcerptTranslating(true); setSelectedExcerptError('');
         try {
-          const result = await invoke<{ translation: string; cached: boolean; provider: string }>('selection_translate', {
+          const result = await invoke<{ translation: string; cached: boolean; provider: string; cacheMatch?: string; sourceText?: string }>('selection_translate', {
             text: selectedExcerpt.text, source: settings.translationSourceLanguage, target: settings.translationTargetLanguage,
-            provider: settings.selectionTranslationProvider, consent: settings.selectionTranslationConsent, requestId: onlineRequestId,
+            documentId: currentDocument.workspaceId, pdfPath: currentDocument.localPdfPath, pageIndex: selectedExcerpt.pdfLocation?.pageNumber ? selectedExcerpt.pdfLocation.pageNumber - 1 : undefined, provider: settings.selectionTranslationProvider, consent: settings.selectionTranslationConsent, requestId: onlineRequestId,
           });
           if (requestId === selectedExcerptRequestIdRef.current) {
-            setSelectedExcerptTranslation(result.translation);
+            setSelectedExcerptTranslation(result.cacheMatch === 'paragraph' ? `【所在句段的缓存译文】\n${result.translation}\n\n原文句段：${result.sourceText}` : result.translation);
             setStatusMessage(result.cached ? '已读取本地译文缓存' : '译文已显示在右侧，请核查科研术语。');
           }
         } catch (error) {

@@ -1,3 +1,6 @@
+import { listen } from '../../platform/electron/event';
+import { parseMineruPages } from '../../services/mineru';
+import { emitNoteChanged } from '../../app/appEvents';
 import { ReaderPreferencesContext } from './ReaderPreferencesContext';
 import {
   useCallback,
@@ -128,6 +131,16 @@ function areReaderTabBridgeStatesEqual(
 }
 
 function Reader({ workspaceActive = true }: ReaderProps) {
+  useEffect(() => {
+    let disposed = false; const disposers: Array<() => void> = [];
+    const keep = (off: () => void) => { if (disposed) off(); else disposers.push(off); };
+    void listen<Note>('paperdesk:preparation-note', event => { if (event.payload?.id) emitNoteChanged({ action: 'created', noteId: event.payload.id, note: event.payload, updatedAt: event.payload.updatedAt }); }).then(keep);
+    void listen<{ paperId: string; pages: unknown; jsonPath: string }>('paperdesk:preparation-source', event => {
+      window.dispatchEvent(new CustomEvent('paperdesk:local-parse-ready', { detail: { workspaceId: `native-library:${event.payload.paperId}`, pages: parseMineruPages(event.payload.pages), jsonPath: event.payload.jsonPath, status: '一键处理：本地解析结果已就绪' } }));
+    }).then(keep);
+    return () => { disposed = true; disposers.forEach(off => off()); };
+  }, []);
+
   const appWindow = getCurrentWindow();
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
@@ -815,7 +828,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
   }, [preferencesOpen, workspaceActive]);
 
   return (
-    <ReaderPreferencesContext.Provider value={{ settings, updateSetting }}>
+    <ReaderPreferencesContext.Provider value={{ settings, updateSetting, summaryModelPreset }}>
     <AppLocaleProvider value={settings.uiLanguage}>
       <div className="relative h-full min-h-0 overflow-hidden bg-[#f4f4f4] text-[#202124] dark:bg-[#121212] dark:text-[#e8e8e8]">
         <div className="flex h-full min-h-0 flex-col bg-[#f7f7f7] dark:bg-[#181818]">

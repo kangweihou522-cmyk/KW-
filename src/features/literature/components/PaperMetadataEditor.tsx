@@ -5,6 +5,8 @@ import type { LiteraturePaper, UpdatePaperRequest, MetadataLayout } from '../../
 import { useLocaleText } from '../../../i18n/uiLanguage';
 import { lookupLiteratureMetadata } from '../../../services/metadata';
 import { paperPdfPath } from '../literatureUi';
+import { invoke } from '../../../platform/electron/core';
+import { useReaderPreferences } from '../../reader/ReaderPreferencesContext';
 import { LibraryPopover } from './LibraryPopover';
 
 function factor(value: string): number | null { return value.trim() ? Number(value) : null; }
@@ -21,6 +23,7 @@ export function PaperImpactFactor({ paper, saving, onSave }: { paper: Literature
 
 export function PaperMetadataEditor({ paper, saving, onSave, metadataLayout }: { paper: LiteraturePaper; saving: boolean; onSave: (request: UpdatePaperRequest) => Promise<boolean>; metadataLayout?: MetadataLayout }) {
   const l = useLocaleText();
+  const preferences = useReaderPreferences();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [layout, setLayout] = useState<MetadataLayout>({ hiddenFields: [], customFields: [] });
@@ -55,6 +58,14 @@ export function PaperMetadataEditor({ paper, saving, onSave, metadataLayout }: {
       setStatus(l('已核对正式记录，点击保存生效。', 'Registry matched. Save to apply.'));
     } catch (e) { setError(String(e)); setStatus(''); } finally { setFilling(false); }
   }
+  async function analyzeLocal() {
+    setFilling(true); setError(''); setStatus(l('正在用本地模型核对首页文字…', 'Checking the first page with the local model…'));
+    try {
+      const result = await invoke<Record<string, string | string[]>>('paper_metadata_local', { paperId: paper.id, modelOptions: preferences?.summaryModelPreset });
+      setDraft(current => { const next = { ...current }; for (const [key, value] of Object.entries(result)) if (Array.isArray(value) ? value.length : value) next[key] = Array.isArray(value) ? value.join('; ') : value; return next; });
+      setStatus(l('已导入能在首页找到依据的候选信息，请核对后保存。', 'Imported candidates supported by first-page text. Review and save.'));
+    } catch (error) { setError(String(error)); setStatus(''); } finally { setFilling(false); }
+  }
   async function save() {
     const value = factor(draft.impactFactor);
     if (!draft.title.trim() || (value !== null && (!Number.isFinite(value) || value < 0))) { setError(l('请填写标题，影响因子须为非负数。', 'A title and non-negative impact factor are required.')); return; }
@@ -76,7 +87,7 @@ export function PaperMetadataEditor({ paper, saving, onSave, metadataLayout }: {
       event.stopPropagation(); if (event.key === 'Escape' && !saving && !filling) setOpen(false);
       if (event.key === 'Tab') { const nodes = dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)'); if (nodes?.length) { const first = nodes[0], last = nodes[nodes.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } } }
     }}><div ref={dialog} role="dialog" aria-modal="true" aria-label={l('编辑文献信息', 'Edit paper metadata')} className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-[var(--pq-border)] bg-[var(--pq-surface-1)] shadow-xl">
-      <header className="flex items-center justify-between gap-2 border-b border-[var(--pq-border)] px-5 py-3"><h2 className="font-semibold">{l('编辑文献信息', 'Edit paper metadata')}</h2><div className="flex items-center gap-2"><button type="button" disabled={filling || saving} className="pq-button px-2.5 py-1.5 text-xs" onClick={() => void fill()}>{filling ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}{l('自动补全', 'Auto-fill')}</button><button type="button" disabled={saving || filling} aria-label={l('关闭', 'Close')} className="pq-icon-button h-8 w-8" onClick={() => setOpen(false)}><X className="h-4 w-4" /></button></div></header>
+      <header className="flex items-center justify-between gap-2 border-b border-[var(--pq-border)] px-5 py-3"><h2 className="font-semibold">{l('编辑文献信息', 'Edit paper metadata')}</h2><div className="flex items-center gap-2"><button type="button" disabled={filling || saving || !paperPdfPath(paper)} className="pq-button px-2.5 py-1.5 text-xs" onClick={() => void analyzeLocal()}>{l('本地分析', 'Local analysis')}</button><button type="button" disabled={filling || saving} className="pq-button px-2.5 py-1.5 text-xs" onClick={() => void fill()}>{filling ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}{l('自动补全', 'Auto-fill')}</button><button type="button" disabled={saving || filling} aria-label={l('关闭', 'Close')} className="pq-icon-button h-8 w-8" onClick={() => setOpen(false)}><X className="h-4 w-4" /></button></div></header>
       <form className="min-h-0 overflow-y-auto p-5" onSubmit={event => { event.preventDefault(); void save(); }}>
         <div className="mb-4 space-y-2"><div className="flex flex-wrap gap-2"><button type="button" className="pq-button px-2.5 py-1.5 text-xs" onClick={() => setAdding(!adding)}><Plus className="mr-1 h-3.5 w-3.5" />{l('添加项目', 'Add field')}</button>{layout.hiddenFields.length > 0 && <select aria-label={l('恢复项目', 'Restore field')} className="pq-input max-w-52 px-2 text-xs" value="" onChange={event => { const restored = event.target.value; setLayout(current => ({ ...current, hiddenFields: current.hiddenFields.filter(key => key !== restored) })); }}><option value="">{l('恢复已移除项目', 'Restore removed field')}</option>{layout.hiddenFields.map(key => <option key={key} value={key}>{labelFor(key)}</option>)}</select>}</div><p className="text-[11px] leading-5 text-[var(--pq-text-muted)]">{l('项目全库共用，内容按文献保存。移除项目会隐藏显示，原值保留，可恢复。', 'Fields are shared across the library; values belong to each paper. Removing a field hides it and retains its values.')}</p>
         {adding && <div className="flex gap-2"><input aria-label={l('新增项目名称', 'New field name')} className="pq-input min-w-0 flex-1 p-2 text-xs" placeholder={l('例如：中文标题', 'For example: Chinese title')} value={newLabel} onChange={event => setNewLabel(event.target.value)} /><button type="button" disabled={!newLabel.trim()} className="pq-button px-3 py-1.5 text-xs" onClick={() => { const id = `custom_${crypto.randomUUID()}`; setLayout(current => ({ ...current, customFields: [...current.customFields, { id, label: newLabel.trim() }] })); setNewLabel(''); setAdding(false); }}>{l('添加', 'Add')}</button></div>}

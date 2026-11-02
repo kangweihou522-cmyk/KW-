@@ -191,6 +191,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   highlightSelectionTranslation: true,
   enablePdfParagraphTranslationPopover: true,
   autoTranslateSelection: true,
+  pretranslateNextPage: true,
   smoothScroll: true,
   compactReading: false,
   showBlockMeta: true,

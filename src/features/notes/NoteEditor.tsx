@@ -51,6 +51,7 @@ import {
   ListChecks,
   ListOrdered,
   Pilcrow,
+  Pencil,
   Plus,
   Quote,
   RefreshCw,
@@ -283,7 +284,7 @@ function createNoteEditorSourceId() {
   return `note-editor-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
-function NoteComponentBlockView({ node, selected, updateAttributes }: NodeViewProps) {
+function NoteComponentBlockView({ node, selected, updateAttributes, editor }: NodeViewProps) {
   const title = typeof node.attrs.title === 'string' && node.attrs.title.trim()
     ? node.attrs.title
     : 'Component';
@@ -294,7 +295,7 @@ function NoteComponentBlockView({ node, selected, updateAttributes }: NodeViewPr
       className={cn('pq-note-component-block', selected ? 'is-selected' : '')}
     >
       <div className="pq-note-component-header" contentEditable={false}>
-        <div className="pq-note-component-kicker">Component</div>
+        {editor.isEditable && <div className="pq-note-component-kicker">Component</div>}
         <input
           value={title}
           onChange={(event) => updateAttributes({ title: event.target.value })}
@@ -302,6 +303,7 @@ function NoteComponentBlockView({ node, selected, updateAttributes }: NodeViewPr
           onClick={(event) => event.stopPropagation()}
           className="pq-note-component-title-input"
           aria-label="Component title"
+          readOnly={!editor.isEditable}
         />
       </div>
       <NodeViewContent className="pq-note-component-content" />
@@ -587,6 +589,7 @@ interface NoteEditorProps {
   pendingAnchorInsert?: NoteAnchorInsertRequest | null;
   onPendingAnchorInsertHandled?: (requestId: string) => void;
   compact?: boolean;
+  previewWhenSaved?: boolean;
   editorSourceId?: string;
   externalUpdateNote?: Note | null;
   onExternalUpdateChange?: (noteId: string, externalUpdate: boolean) => void;
@@ -623,6 +626,7 @@ export function NoteEditor({
   pendingAnchorInsert = null,
   onPendingAnchorInsertHandled,
   compact = false,
+  previewWhenSaved = false,
   editorSourceId,
   externalUpdateNote = null,
   onExternalUpdateChange,
@@ -632,10 +636,12 @@ export function NoteEditor({
   onPaperClick,
   onJumpToNoteAnchor,
 }: NoteEditorProps) {
-  const [title, setTitle] = useState('');
-  const [tagText, setTagText] = useState('');
+  const [title, setTitle] = useState(note?.title || '');
+  const [editing, setEditing] = useState(false);
+  const preview = previewWhenSaved && !editing;
+  const [tagText, setTagText] = useState(note?.tags.join(', ') || '');
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
-  const [color, setColor] = useState('#fef3c7');
+  const [color, setColor] = useState(note?.color || '#fef3c7');
   const [revision, setRevision] = useState(0);
   const [externalUpdateAvailable, setExternalUpdateAvailable] = useState(false);
   const [editorContextMenu, setEditorContextMenu] = useState<NoteEditorContextMenuState | null>(null);
@@ -1210,6 +1216,7 @@ export function NoteEditor({
 
   useEffect(() => {
     if (!note || !isNoteRecord(externalUpdateNote, note.id)) return;
+    if (preview && !dirtyRef.current) { onExternalUpdateApply?.(externalUpdateNote); return; }
 
     const incomingSnapshot = snapshotFromNote(externalUpdateNote);
     const incomingSignature = signature({
@@ -1230,7 +1237,7 @@ export function NoteEditor({
       externalNoteRef.current = externalUpdateNote;
       setExternalUpdateState(true, note.id);
     }
-  }, [color, externalUpdateNote, note, setExternalUpdateState, tagText, title]);
+  }, [color, externalUpdateNote, note, setExternalUpdateState, tagText, title, preview, onExternalUpdateApply]);
 
   useEffect(() => {
     const incomingSnapshot = snapshotFromNote(note);
@@ -1265,7 +1272,9 @@ export function NoteEditor({
       draft.draftSignature !== incomingSignature &&
       (!sameNote || !dirtyRef.current || localSignature === incomingSignature);
 
+    if (!sameNote) setEditing(!incomingSnapshot.contentText.trim());
     if (canRestoreDraft) {
+      setEditing(true);
       userEditedNoteIdRef.current = noteId;
       setTitle(draft.title);
       setTagText(draft.tagText);
@@ -1353,6 +1362,7 @@ export function NoteEditor({
       return;
     }
 
+    if (userEditedNoteIdRef.current !== note.id) return;
     writeNoteEditorDraft(editorSourceIdRef.current, {
       noteId: note.id,
       baseUpdatedAt: appliedUpdatedAtRef.current ?? note.updatedAt ?? null,
@@ -1372,6 +1382,8 @@ export function NoteEditor({
     if (pendingAnchorInsert.noteId && pendingAnchorInsert.noteId !== note.id) return;
     if (handledAnchorInsertRequestRef.current === pendingAnchorInsert.requestId) return;
 
+    setEditing(true);
+    userEditedNoteIdRef.current = note.id;
     handledAnchorInsertRequestRef.current = pendingAnchorInsert.requestId;
     pendingAnchorsRef.current.set(pendingAnchorInsert.anchor.id, pendingAnchorInsert.anchor);
 
@@ -1434,6 +1446,8 @@ export function NoteEditor({
       { sourceId: editorSourceIdRef.current },
     );
 
+    if (previewWhenSaved && !updatedNote) return;
+    if (previewWhenSaved) { setEditing(false); setTagEditorOpen(false); setEditorContextMenu(null); }
     for (const anchorId of Array.from(pendingAnchorsRef.current.keys())) {
       if (!contentAnchorIds.has(anchorId)) pendingAnchorsRef.current.delete(anchorId);
     }
@@ -1444,7 +1458,7 @@ export function NoteEditor({
     clearNoteEditorDraft(editorSourceIdRef.current, note.id);
     setTitle(nextTitle);
     setRevision((value) => value + 1);
-  }, [color, editor, note, onUpdate, saving, setExternalUpdateState, tagText, title]);
+  }, [color, editor, note, onUpdate, saving, setExternalUpdateState, tagText, title, previewWhenSaved]);
 
   const refreshFromExternalUpdate = useCallback((requestedNote?: Note) => {
     const incomingNote = requestedNote ?? (
@@ -1533,7 +1547,7 @@ export function NoteEditor({
 
   useEffect(() => {
     const editorBody = editorBodyRef.current;
-    if (!editorBody || !editor || editor.isDestroyed) return undefined;
+    if (!editorBody || !editor || editor.isDestroyed || preview) return undefined;
 
     const handleNativeContextMenu = (event: MouseEvent) => {
       const target = event.target;
@@ -1554,7 +1568,9 @@ export function NoteEditor({
     return () => {
       editorBody.removeEventListener('contextmenu', handleNativeContextMenu, true);
     };
-  }, [editor, openEditorContextMenu]);
+  }, [editor, openEditorContextMenu, preview]);
+
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.setEditable(!preview); }, [editor, preview]);
 
   if (!note) {
     return (
@@ -1577,7 +1593,11 @@ export function NoteEditor({
       onDropCapture={event => { if (event.nativeEvent.isTrusted) userEditedNoteIdRef.current = note.id; }}
       onKeyDown={handleEditorKeyDown}
     >
-      <div className={cn('border-b border-[var(--pq-border)]', compact ? 'px-3 py-2.5' : 'px-4 py-3')}>
+      {preview && <header className="flex shrink-0 items-start gap-2 px-4 py-3" data-note-preview>
+        <div className="min-w-0 flex-1"><h3 className="break-words text-sm font-semibold">{title || TEXT.untitled}</h3>{currentTags.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{currentTags.map(tag => <span key={tag} className="rounded-full bg-[var(--pq-accent-soft)] px-2 py-0.5 text-[11px] text-[var(--pq-accent)]">{tag}</span>)}</div>}</div>
+        <button type="button" aria-label="编辑笔记" title="编辑笔记" onClick={() => setEditing(true)} className="pq-icon-button h-7 w-7 text-[var(--pq-accent)]"><Pencil className="h-3.5 w-3.5" /></button>
+      </header>}
+      <div hidden={preview} style={{ display: preview ? 'none' : undefined }} className={cn('border-b border-[var(--pq-border)]', compact ? 'px-3 py-2.5' : 'px-4 py-3')}>
         <div className="flex min-w-0 items-start gap-3">
           <input
             value={title}
@@ -1708,16 +1728,16 @@ export function NoteEditor({
         </div>
       ) : null}
 
-      <NoteEditorToolbar editor={editor} />
+      {!preview && <NoteEditorToolbar editor={editor} />}
 
       <div
         ref={editorBodyRef}
         className="pq-note-editor-body min-h-0 flex-1 overflow-y-auto"
-        onContextMenu={handleEditorContextMenu}
+        onContextMenu={preview ? undefined : handleEditorContextMenu}
         onScroll={() => setEditorContextMenu(null)}
       >
         <EditorContent editor={editor} className={cn('pq-tiptap-editor', compact ? 'is-compact' : '')} />
-        <NoteBlockControls editor={editor} compact={compact} />
+        {!preview && <NoteBlockControls editor={editor} compact={compact} />}
       </div>
 
       {editorContextMenu ? (
@@ -1731,7 +1751,7 @@ export function NoteEditor({
         />
       ) : null}
 
-      <div className="flex items-center justify-between gap-3 border-t border-[var(--pq-border)] px-3 py-2 text-xs text-[var(--pq-text-faint)]">
+      <div hidden={preview} style={{ display: preview ? 'none' : undefined }} className="flex items-center justify-between gap-3 border-t border-[var(--pq-border)] px-3 py-2 text-xs text-[var(--pq-text-faint)]">
         <span>{snapshotRef.current.wordCount || 0} words</span>
         <div className="flex items-center gap-2">
           {externalUpdateAvailable ? (

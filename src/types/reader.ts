@@ -541,6 +541,7 @@ export interface ReaderSettings {
   highlightSelectionTranslation: boolean;
   enablePdfParagraphTranslationPopover: boolean;
   autoTranslateSelection: boolean;
+  pretranslateNextPage: boolean;
   smoothScroll: boolean;
   compactReading: boolean;
   showBlockMeta: boolean;

@@ -1,4 +1,5 @@
 import type { MineruPage, PaperSummary, PdfSource, WorkspaceItem } from '../../types/reader.ts';
+import { readPreparedSource } from '../../services/preparedSource.ts';
 import {
   buildMineruCachePathCandidates,
   buildMineruSummaryCachePathCandidates,
@@ -90,6 +91,8 @@ export async function loadSavedMineruPages({
   parsePages: ParseMineruPages;
   parseMarkdownPages?: ParseMineruMarkdownPages;
 }): Promise<SavedMineruPagesResult | null> {
+  const prepared = await readPreparedSource(item);
+  if (prepared) return { pages: parsePages(prepared.pages), path: prepared.jsonPath, message: l('已恢复一键处理的本地解析结果', 'Restored the prepared local PDF text') };
   if (!mineruCacheDir.trim()) {
     return null;
   }

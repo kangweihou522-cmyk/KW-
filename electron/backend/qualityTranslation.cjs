@@ -8,6 +8,7 @@ const { jsonRequest, consumeSse } = require('./remoteHttp.cjs');
 const { hashFile } = require('./resourceDownload.cjs');
 const { downloadModelResource } = require('./modelDownload.cjs');
 const lock = require('../../packaging/quality-translation-lock.json');
+const { InferenceQueue } = require('./inferenceQueue.cjs');
 function chunkText(text, limit = 1600) {
   const chunks = []; let remaining = text.replace(/(\w)-\r?\n(?=\w)/g, '$1').replace(/([^\n])\r?\n(?=[^\n])/g, '$1 ');
   while (remaining.length > limit) { let end = remaining.lastIndexOf(' ', limit); if (end < limit / 2) end = limit; chunks.push(remaining.slice(0, end)); remaining = remaining.slice(end); }
@@ -28,7 +29,7 @@ class QualityTranslation {
   constructor(context) {
     this.lock = context.qualityLock || lock; this.context = context; this.json = context.qualityJson || jsonRequest; this.download = context.qualityDownload || downloadModelResource;
     this.modelDir = path.join(context.appPaths.modelsDir || path.join(context.appPaths.homeDir || path.dirname(context.appPaths.dataDir), 'models'), 'translation', 'hy-mt2-1.8b-q4');
-    this.modelFile = path.join(this.modelDir, 'model.gguf'); this.child = null; this.starting = null; this.installing = null; this.queue = Promise.resolve(); this.backend = null; this.failure = ''; this.failurePhase = ''; this.failureCode = ''; this.progress = null; this.verified = null; this.installController = null;
+    this.modelFile = path.join(this.modelDir, 'model.gguf'); this.child = null; this.starting = null; this.installing = null; this.scheduler = new InferenceQueue(); this.backend = null; this.failure = ''; this.failurePhase = ''; this.failureCode = ''; this.progress = null; this.verified = null; this.installController = null;
     this.runtimeDir = context.qualityRuntimeDir || (context.app?.isPackaged ? path.join(process.resourcesPath, 'quality-translation') : path.resolve(__dirname, '../../release/quality-translation'));
   }
   executable(backend) { return path.join(this.runtimeDir, backend, process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'); }
@@ -164,12 +165,11 @@ class QualityTranslation {
     }
     child.kill(); throw new Error(`离线推理组件未就绪（${exitReason || '启动超时'}）。${stderr.split(token).join('[已隐藏]').trim()}`);
   }
-  translate(text, options = {}) {
-    const task = this.queue.catch(() => {}).then(async () => {
-      if (options.signal?.aborted) throw new Error('请求已取消。'); await this.start();
-      const result = [];
-      for (const chunk of chunkText(text)) {
-        if (options.signal?.aborted) throw new Error('请求已取消。');
+  async translate(text, options = {}) {
+    const result = [];
+    for (const chunk of chunkText(text, 1000)) {
+      const output = await this.scheduler.run(async () => {
+        options.signal?.throwIfAborted(); await this.start();
         const response = await localRequest(this.port, this.token, '/v1/chat/completions', { messages: [{ role: 'user', content: translationPrompt(chunk, options) }], temperature: 0.7, top_p: 0.6, top_k: 20, repeat_penalty: 1.05, max_tokens: 4096, stream: true }, options.signal);
         let output = ''; let finished = false;
         if (result.length) options.onDelta?.('\n\n');
@@ -179,10 +179,11 @@ class QualityTranslation {
           if (choice?.finish_reason) { if (choice.finish_reason !== 'stop') throw new Error('译文达到长度限制，未缓存截断内容。请缩短划选。'); finished = true; }
         });
         if (!finished || !output.trim()) throw new Error('离线模型未返回完整译文。');
-        result.push(output);
-      }
-      return result.join('\n\n');
-    }); this.queue = task; return task;
+        return output;
+      }, options);
+      result.push(output);
+    }
+    return result.join('\n\n');
   }
   pauseInstall() {
     if (!this.installing || !['connect', 'download', 'retry'].includes(this.progress?.stage)) return { paused: false };

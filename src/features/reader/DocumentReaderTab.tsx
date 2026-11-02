@@ -1,3 +1,4 @@
+import { invoke } from '../../platform/electron/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReaderWorkspace from './ReaderWorkspace';
 import {
@@ -607,7 +608,9 @@ function DocumentReaderTab({
       true,
     );
   };
+  const [prefetchPage, setPrefetchPage] = useState(0);
   const handlePdfScrollPositionChange = useCallback((position: PdfScrollPosition) => {
+    setPrefetchPage(Math.max(0, position.page - 1));
     const next = upsertRecentPdfScrollPosition(pdfScrollPositionsRef.current, position);
 
     if (!next) {
@@ -1468,7 +1471,7 @@ function DocumentReaderTab({
         return;
       }
 
-      const translatedText = blockTranslations[contentBlock.blockId]?.trim() ?? '';
+      const translatedText = settings.selectionTranslationProvider === 'offline-quality' ? '' : blockTranslations[contentBlock.blockId]?.trim() ?? '';
 
       lastCapturedSelectionRef.current = null;
       autoTranslatedSelectionKeyRef.current = '';
@@ -1503,6 +1506,7 @@ function DocumentReaderTab({
       readingViewMode,
       resolveBlockContentSource,
       settings.enablePdfParagraphTranslationPopover,
+      settings.selectionTranslationProvider,
     ],
   );
 
@@ -3668,9 +3672,16 @@ function DocumentReaderTab({
   }, [applyMineruPages, currentDocument, pdfPath, pdfSource]);
 
   useEffect(() => {
+    if (!isActive || !settings.pretranslateNextPage || settings.selectionTranslationProvider !== 'offline-quality' || currentDocument.source !== 'native-library') return;
+    const paperId = currentDocument.itemKey; const requestId = crypto.randomUUID();
+    const timer = window.setTimeout(() => { void invoke('paper_translation_prefetch', { paperId, pageIndex: prefetchPage, source: settings.translationSourceLanguage, target: settings.translationTargetLanguage, requestId }).catch(() => {}); }, 2500);
+    return () => { window.clearTimeout(timer); void invoke('paper_translation_prefetch_cancel', { paperId, requestId }).catch(() => {}); };
+  }, [currentDocument.itemKey, currentDocument.source, isActive, prefetchPage, settings.pretranslateNextPage, settings.selectionTranslationProvider, settings.translationSourceLanguage, settings.translationTargetLanguage]);
+
+  useEffect(() => {
     if (!selectedExcerpt || !settings.enableSelectionTranslation) return;
     setAssistantActivePanel('translate');
-    if (selectedExcerpt.origin === 'pdf-block' || !settings.autoTranslateSelection || !['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) && !settings.selectionTranslationConsent) return;
+    if (selectedExcerpt.origin === 'pdf-block' && settings.selectionTranslationProvider !== 'offline-quality' || !settings.autoTranslateSelection || !['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) && !settings.selectionTranslationConsent) return;
     const key = `${selectedExcerpt.createdAt}:${selectedExcerpt.source}:${selectedExcerpt.text}:${settings.selectionTranslationProvider}`;
     if (autoTranslatedSelectionKeyRef.current === key) return;
     const timer = window.setTimeout(() => {
@@ -3682,7 +3693,7 @@ function DocumentReaderTab({
 
   useEffect(() => {
     const ready = () => {
-      if (!['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) || !settings.autoTranslateSelection || !selectedExcerpt || selectedExcerpt.origin === 'pdf-block') return;
+      if (!['offline', 'offline-quality'].includes(settings.selectionTranslationProvider) || !settings.autoTranslateSelection || !selectedExcerpt || selectedExcerpt.origin === 'pdf-block' && settings.selectionTranslationProvider !== 'offline-quality') return;
       setAssistantActivePanel('translate');
       void handleTranslateSelectedExcerpt(false);
     };
