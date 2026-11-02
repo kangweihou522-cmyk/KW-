@@ -1,4 +1,6 @@
-import { ChatGptConnection } from './ChatGptConnection';
+import { ReportProviderSettings, type ReportProviderStatus } from './ReportProviderSettings';
+import { ReadingReportWorkbench } from './ReadingReportWorkbench';
+import { listen } from '../../platform/electron/event';
 import { invoke } from '../../platform/electron/core';
 import { emitNoteChanged } from '../../app/appEvents';
 import { useEffect, useState } from 'react';
@@ -11,7 +13,11 @@ import type { Note } from '../../types/notes';
 import { useTabsStore } from '../../stores/useTabsStore';
 import { buildChatGptReadingPrompt } from './readingReport';
 
-export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperId?: string; paperTitle?: string; onOpenNote?: () => void }) {
+type AssistProps = { paperId?: string; paperTitle?: string; onOpenNote?: () => void };
+export function ChatGptAssist(props: AssistProps) {
+  return <ChatGptAssistForPaper key={props.paperId || 'global'} {...props} />;
+}
+function ChatGptAssistForPaper({ paperId = '', paperTitle, onOpenNote }: AssistProps) {
   const l = useLocaleText();
   const reply = useChatGptDraft(paperId);
   const [report, setReport] = useState<Note | null>(null);
@@ -28,6 +34,15 @@ export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperI
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [asking, setAsking] = useState(false);
+  const [provider, setProvider] = useState<ReportProviderStatus | null>(null);
+  const [progress, setProgress] = useState<{ stage: string; completed?: number; total?: number } | null>(null);
+  useEffect(() => {
+    let disposed = false; let unlisten: (() => void) | undefined;
+    void listen<{ paperId: string; stage: string; completed?: number; total?: number }>('paperdesk:report-progress', event => {
+      if (event.payload.paperId === paperId) setProgress(event.payload.stage === 'ended' ? null : event.payload);
+    }).then(stop => { if (disposed) stop(); else unlisten = stop; }).catch(() => { /* Generation errors are shown by the command itself. */ });
+    return () => { disposed = true; unlisten?.(); };
+  }, [paperId]);
 
   async function run(action: () => Promise<void>) {
     setFailed(false);
@@ -40,21 +55,22 @@ export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperI
 
   return (
     <section className="space-y-4">
-      <ChatGptConnection />
+      <ReportProviderSettings onChange={setProvider} />
       <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
-        <h3 className="text-sm font-semibold">{l('当前文献 · ChatGPT 助手', 'ChatGPT paper assistant')}</h3>
+        <h3 className="text-sm font-semibold">{l('当前文献 · 阅读助手', 'Paper reading assistant')}</h3>
         <p className="text-xs leading-6 text-slate-600">{l('直接读取当前论文及已关联补充材料的可提取文字，生成概览和七部分读书报告并保存本地。无需再到网页上传 PDF、复制粘贴回答。图像、公式和证据仍需核对原文。', 'Generate and save an overview and seven-part report from the paper and linked supplementary text. No manual PDF upload or answer copying. Check figures, formulas and source evidence.')}</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="pq-button px-3 py-2 text-xs" disabled={!paperId || !loaded || saving} onClick={() => void run(async () => {
             if (report && !window.confirm('已有本地报告。重新生成会使用账户额度并更新这份笔记，请先备份需要保留的手工修改。继续？')) return;
             setSaving(true);
+            setProgress({ stage: 'reading' });
             try {
-              const result = await invoke<{ note: Note; cached: boolean; warnings: string[]; overviewSynced?: boolean }>('chatgpt_generate_report', { paperId, force: !!report });
+              const result = await invoke<{ note: Note; cached: boolean; warnings: string[]; overviewSynced?: boolean; overviewText?: string }>('chatgpt_generate_report', { paperId, force: !!report });
               setReport(result.note);
               emitNoteChanged({ action: report ? 'updated' : 'created', noteId: result.note.id, note: result.note, updatedAt: result.note.updatedAt });
-              if (result.overviewSynced !== false) window.dispatchEvent(new CustomEvent('paperquay:native-summary-updated', { detail: { paperId, aiSummary: result.note.contentText || result.note.content } }));
+              if (result.overviewSynced !== false) window.dispatchEvent(new CustomEvent('paperquay:native-summary-updated', { detail: { paperId, aiSummary: result.overviewText || result.note.contentText || result.note.content } }));
               setStatus(`报告已保存到本地笔记，之后阅读编辑不再请求 ChatGPT。${result.warnings.length ? ' 材料限制：' + result.warnings.join('；') : ''}`);
-            } finally { setSaving(false); }
+            } finally { setSaving(false); setProgress(null); }
           })}>{saving ? '正在生成并保存…' : report ? '重新生成报告' : '一键生成并保存报告'}</button>
           {report ? <button type="button" className="pq-button px-3 py-2 text-xs" onClick={() => void run(async () => {
             const latest = await getChatGptReport(paperId); if (!latest) throw new Error('本地报告已删除。');
@@ -62,6 +78,13 @@ export function ChatGptAssist({ paperId = '', paperTitle, onOpenNote }: { paperI
             window.setTimeout(() => window.dispatchEvent(new CustomEvent('paperdesk:edit-saved-report', { detail: latest })), 250);
           })}>打开已保存报告（不消耗额度）</button> : null}
         </div>
+        {saving ? <div role="status" className="space-y-2 text-xs">
+          <p>{progress?.stage === 'analysis' ? `正在整理证据：${progress.completed ?? 0} / ${progress.total ?? 0} 段` : progress?.stage === 'report' ? '证据整理完成，正在撰写报告…' : '正在读取论文及关联材料…'}</p>
+          {progress?.stage === 'analysis' && !!progress.total ? <progress className="w-full" value={progress.completed ?? 0} max={progress.total} aria-label="文献证据整理进度" /> : null}
+          <button type="button" className="pq-button px-3 py-2" onClick={() => void run(async () => { await invoke('report_cancel', { paperId }); setStatus('已请求取消，已完成的分段分析仍保留。'); })}>取消生成</button>
+        </div> : null}
+        {provider ? <p className="text-xs text-slate-500">当前生成渠道：{provider.provider === 'chatgpt' ? 'ChatGPT 套餐' : 'OpenRouter 免费模型'}。手工编辑不消耗模型额度。</p> : null}
+        {paperId ? <ReadingReportWorkbench key={paperId} paperId={paperId} title={paperTitle || '文献'} report={report} loaded={loaded} generating={saving} onSaved={setReport} /> : null}
         <div className="flex gap-2"><input aria-label="向 ChatGPT 提问当前文献" className="pq-input min-w-0 flex-1 p-2 text-xs" value={question} onChange={e => setQuestion(e.target.value)} placeholder="直接提问，例如：对照组和样本量如何设计？" /><button type="button" className="pq-button px-3 text-xs" disabled={!paperId || !question.trim() || asking} onClick={() => void run(async () => {
           setAsking(true); try { const result = await invoke<{ text: string }>('chatgpt_ask_paper', { paperId, question }); setAnswer(result.text); } finally { setAsking(false); }
         })}>{asking ? '正在回答…' : '提问'}</button></div>

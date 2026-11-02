@@ -1,0 +1,32 @@
+PaperDesk optional high-quality translation
+
+The model is Tencent Hy-MT2-1.8B, a specialized translation model.
+Upstream project: https://github.com/Tencent-Hunyuan/Hy-MT2
+The upstream Hy-MT2 release is licensed under Apache License 2.0.
+Model files are distributed separately and are not covered by PaperDesk's AGPL.
+Exact model revision, size and SHA256 must be pinned in quality-translation-lock.json
+before a model can be installed or published. No unverified download is allowed.
+
+Inference engine: llama.cpp, Copyright (c) 2023-2026 The ggml authors.
+Upstream: https://github.com/ggml-org/llama.cpp
+License: MIT. Original bundled licenses and notices are retained.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

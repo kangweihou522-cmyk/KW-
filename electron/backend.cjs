@@ -1,4 +1,6 @@
-const { ChatGptBridge } = require('./backend/chatGptBridge.cjs');
+const { ChatGptPlan } = require('./backend/chatGptPlan.cjs');
+const { ReportProvider, createReportProviderCommands } = require('./backend/reportProvider.cjs');
+const { ReadingHistory, createReadingHistoryCommands } = require('./backend/readingHistory.cjs');
 const { createChatGptCommands } = require('./backend/chatGptCommands.cjs');
 const { createSelectionTranslationV2 } = require('./backend/selectionTranslationV2.cjs');
 const { OfflineTranslation, createOfflineTranslationCommands } = require('./backend/offlineTranslation.cjs');
@@ -86,7 +88,9 @@ function createBackend({ app }) {
     ragStore,
     store,
   };
-  context.chatGptBridge = new ChatGptBridge(context);
+  context.chatGptBridge = new ChatGptPlan(context);
+  context.reportProvider = new ReportProvider(context);
+  context.readingHistory = new ReadingHistory(context);
   context.offlineTranslation = new OfflineTranslation(context);
   app?.once?.('before-quit', () => context.offlineTranslation.close());
   const fileCommands = createFileCommands(context);
@@ -104,6 +108,8 @@ function createBackend({ app }) {
     ...createReferenceExchangeCommands(context),
     ...createSelectionTranslationCommands(context),
     ...createChatGptCommands(context),
+    ...createReportProviderCommands(context),
+    ...createReadingHistoryCommands(context),
     ...createOfflineTranslationCommands(context),
     ...createSelectionTranslationV2(context),
   };

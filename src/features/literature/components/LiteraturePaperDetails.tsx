@@ -36,6 +36,7 @@ import {
 } from '../literatureUi';
 import LiteratureReadingTimeChart from './LiteratureReadingTimeChart';
 import PaperLocalResources from './PaperLocalResources';
+import LiteratureOverviewEditor from './LiteratureOverviewEditor';
 
 interface LiteraturePaperDetailsProps {
   selectedPaper: LiteraturePaper | null;
@@ -89,23 +90,24 @@ function resolveOverviewSectionKey(title: string): OverviewSectionKey {
     .toLocaleLowerCase()
     .replace(/[：:]/g, '');
 
-  if (/keyword|keywords/.test(normalized)) {
+  if (/keyword|keywords|关键词/.test(normalized)) {
     return 'keywords';
   }
 
-  if (/finding|result/.test(normalized)) {
+  if (/finding|result|结果|发现/.test(normalized)) {
     return 'findings';
   }
 
-  if (/takeaway|insight|contribution/.test(normalized)) {
+  if (/takeaway|insight|contribution|要点|贡献/.test(normalized)) {
     return 'takeaways';
   }
 
-  if (/limitation|weakness|constraint/.test(normalized)) {
+  if (/证据评价/.test(normalized)) return 'evaluation';
+  if (/limitation|weakness|constraint|局限/.test(normalized)) {
     return 'limitations';
   }
 
-  if (/conclusion|summary/.test(normalized)) {
+  if (/conclusion|主要结论|结论/.test(normalized)) {
     return 'conclusion';
   }
 
@@ -113,15 +115,16 @@ function resolveOverviewSectionKey(title: string): OverviewSectionKey {
   if (/discussion|讨论/.test(normalized)) return 'discussion';
   if (/evidence evaluation|证据评价/.test(normalized)) return 'evaluation';
 
-  if (/experiment|validation|evaluation|setup/.test(normalized)) {
+  if (/experiment|validation|evaluation|setup|实验|试验/.test(normalized)) {
     return 'experiment';
   }
 
-  if (/approach|method|model|framework/.test(normalized)) {
+  if (/approach|method|model|framework|方法/.test(normalized)) {
     return 'approach';
   }
 
-  if (/problem|question/.test(normalized)) {
+  if (/background|motivation|背景/.test(normalized)) return 'background';
+  if (/problem|question|问题/.test(normalized)) {
     return 'problem';
   }
 
@@ -504,6 +507,7 @@ export default function LiteraturePaperDetails({
   const rootRef = useRef<HTMLElement | null>(null);
   const handleWheelCapture = useWheelScrollDelegate({ rootRef });
   const [editing, setEditing] = useState(false);
+  const [overviewEditing, setOverviewEditing] = useState(false);
   const [draft, setDraft] = useState<PaperEditDraft>(() => draftFromPaper(selectedPaper));
   const [activeOverviewKey, setActiveOverviewKey] = useState<OverviewSectionKey>('overview');
   const [readingHeatmap, setReadingHeatmap] = useState<PdfReadingHeatmap | null>(() =>
@@ -512,6 +516,7 @@ export default function LiteraturePaperDetails({
 
   useEffect(() => {
     setEditing(false);
+    setOverviewEditing(false);
     setDraft(draftFromPaper(selectedPaper));
     setReadingHeatmap(latestReadingHeatmapForPaper(selectedPaper?.id));
   }, [selectedPaper?.id]);
@@ -895,15 +900,16 @@ export default function LiteraturePaperDetails({
                 <section className="pq-card p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-[#8d8d8d]">
-                      {l('AI 概览', 'AI Overview')}
+                      {l('文献概览', 'Paper overview')}
                     </div>
                     {overviewSections.length > 0 ? (
                       <span className="rounded-full border border-[var(--pq-accent-ring)] bg-[var(--pq-accent-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--pq-accent)]">
                         {l(`${overviewSections.length} 个部分`, `${overviewSections.length} sections`)}
                       </span>
                     ) : null}
+                    <button type="button" className="pq-button inline-flex items-center gap-1 px-2 py-1 text-xs" onClick={() => setOverviewEditing(current => !current)}><Pencil className="h-3.5 w-3.5" />{overviewEditing ? '收起编辑（草稿保留）' : aiSummary ? '编辑概览' : '手工填写'}</button>
                   </div>
-                  {activeOverviewSection ? (
+                  {overviewEditing ? <LiteratureOverviewEditor key={selectedPaper.id} paperId={selectedPaper.id} initialOverview={selectedPaper.aiSummary || ''} onClose={() => setOverviewEditing(false)} /> : activeOverviewSection ? (
                     <div className="mt-3 space-y-3">
                       <div className="flex flex-wrap gap-2">
                         {overviewSections.map((section) => {
@@ -963,7 +969,7 @@ export default function LiteraturePaperDetails({
                     </div>
                   ) : (
                     <div className="mt-3 rounded-xl border border-dashed border-[var(--pq-border)] bg-white/48 px-4 py-4 text-sm leading-6 text-[var(--pq-text-muted)]">
-                      {l('生成概览后，结果会显示在这里。', 'After generating an overview, the result will appear here.')}
+                      {l('可以手工填写并保存概览，也可从报告生成初稿。无需 AI 或登录即可编辑。', 'Write and save an overview manually, or generate a draft from a report. No sign-in is required for editing.')}
                     </div>
                   )}
                 </section>

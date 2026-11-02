@@ -66,7 +66,8 @@ export async function updateNote(
   options: NoteMutationOptions = {},
 ): Promise<Note> {
   try {
-    const note = await invoke<Note>('notes_update', { id, patch });
+    const note = await invoke<Note & { readingOverview?: { paperId: string; aiSummary: string } }>('notes_update', { id, patch });
+    if (note.readingOverview) window.dispatchEvent(new CustomEvent('paperquay:native-summary-updated', { detail: note.readingOverview }));
     if (!options.silent) {
       emitNoteChanged({
         action: 'updated',

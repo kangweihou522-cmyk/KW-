@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "engine": "llama.cpp",
+  "version": "b12000",
+  "runtime": {
+    "win32-x64": {
+      "name": "llama-b12000-bin-win-vulkan-x64.zip",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12000/llama-b12000-bin-win-vulkan-x64.zip",
+      "bytes": 37490081,
+      "sha256": "7377042036a1db75639316459accc336e8fd4b772b27ae35f7ce19a66226a95d"
+    },
+    "linux-x64": {
+      "name": "llama-b12000-bin-ubuntu-x64.tar.gz",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12000/llama-b12000-bin-ubuntu-x64.tar.gz",
+      "bytes": 22852733,
+      "sha256": "c56588b49ed4be846b115188407ea2b601fa3a5c30b8c25ad60e8344dfc7a4fd"
+    }
+  },
+  "model": {
+    "id": "hy-mt2-1.8b-q4",
+    "name": "Hy-MT2-1.8B-Q4_K_M.gguf",
+    "repository": "tencent/Hy-MT2-1.8B-GGUF",
+    "revision": null,
+    "upstreamUrl": null,
+    "downloadUrl": "https://github.com/kangweihou522-cmyk/KW-/releases/download/paperdesk-v0.5.0/Hy-MT2-1.8B-Q4_K_M.gguf",
+    "bytes": null,
+    "sha256": null,
+    "license": "Apache-2.0"
+  }
+}
