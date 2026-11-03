@@ -12,3 +12,13 @@ test('free report catalog excludes charged or unpriced models even if their name
  assert.equal(isFreeModel({id:'vendor/model:free',pricing:{prompt:'0',completion:'0'}}),true);
  for(const model of [{id:'vendor/model',pricing:{prompt:'0',completion:'0'}},{id:'vendor/model:free',pricing:{prompt:'0.001',completion:'0'}},{id:'vendor/model:free'}])assert.equal(isFreeModel(model),false);
 });
+
+test('long selections and background sentences never place unselected page text in the model prompt', () => {
+ const text='Dietary irritants stimulate the nervous system. The sample size was 20.';
+ const context=text+' Introduction. There were 384 chickens in an unrelated study.';
+ const prompt=translationPrompt(text,{context,selectionFragment:true});
+ assert(!prompt.includes('384')); assert(!prompt.includes('Introduction'));
+ assert(!translationPrompt('The sample size was 20.',{context,background:true}).includes('384'));
+ const word=translationPrompt('sample',{context:'The sample size was 20.',selectionFragment:true});
+ assert(word.includes('word sense only')); assert(word.endsWith('\n\nsample'));
+});

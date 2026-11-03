@@ -8,7 +8,7 @@ import { useReaderPreferences } from '../../reader/ReaderPreferencesContext';
 import { emitLibraryDataChanged } from '../libraryEvents';
 type Preparation = { paperId: string; status: string; running: boolean; paused: boolean; stage: string; steps: Record<string, { status: string; message?: string }>; completed: number; total: number; cached: number; message?: string; warnings?: string[] };
 type Translations = { units: Array<{ id: string; pageIndex: number; text: string; translation: string }> };
-const labels: Record<string, string> = { parse: '解析', metadata: '书目', overview: 'AI 概览', translation: '翻译' };
+const labels: Record<string, string> = { parse: '解析', metadata: '书目', overview: 'AI 概览', personal: '摘要与文献概览', translation: '翻译' };
 
 export function PaperPreparationControls({ paper }: { paper: LiteraturePaper }) {
   const preferences = useReaderPreferences();

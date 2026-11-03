@@ -14,9 +14,13 @@ function chunkText(text, limit = 1600) {
   while (remaining.length > limit) { let end = remaining.lastIndexOf(' ', limit); if (end < limit / 2) end = limit; chunks.push(remaining.slice(0, end)); remaining = remaining.slice(end); }
   if (remaining.trim()) chunks.push(remaining); return chunks;
 }
-function translationPrompt(text, { source = 'English', target = 'Chinese', terms = [], context = '' } = {}) {
+function translationPrompt(text, { source = 'English', target = 'Chinese', terms = [], context = '', background = false, selectionFragment = false } = {}) {
   const glossary = terms.filter(t => text.toLowerCase().includes(t.source.toLowerCase())).map(t => `${t.source} → ${t.target}`).join('\n');
-  return `${context ? `Context (do not translate):\n${context}\n` : ''}${glossary ? `Terminology:\n${glossary}\n` : ''}Translate the following segment from ${source === 'auto' ? 'its original language' : source} into ${target}, without any explanation. Keep numbers, units, formulas, citations and negation unchanged.\n\n${text}`;
+  // Context is useful for a short ambiguous phrase. It must be one bounded
+  // containing sentence; full sentences and longer ranges use source alone.
+  const { selectionContext, normalizeText } = require('./translationText.cjs');
+  const hint = !background && selectionFragment && text.trim().split(/\s+/u).length <= 8 && context.length <= 600 && context.includes(normalizeText(text)) ? selectionContext(context, normalizeText(text)) : '';
+  return `${hint && hint !== normalizeText(text) ? `For word sense only (do NOT translate or repeat this sentence): ${hint}\nOutput ONLY the translation of the selected words below; do not complete the surrounding sentence.\n` : ''}${glossary ? `Terminology:\n${glossary}\n` : ''}Translate the following segment from ${source === 'auto' ? 'its original language' : source} into ${target}, without any explanation. Keep numbers, units, formulas, citations and negation unchanged.\n\n${text}`;
 }
 function localRequest(port, token, route, body, signal) {
   return new Promise((resolve, reject) => {

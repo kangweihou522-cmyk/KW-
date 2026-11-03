@@ -3,6 +3,7 @@ const path = require('node:path');
 const { hash, normalizeText, writeJson, readJson } = require('./translationMemory.cjs');
 const { splitSentences } = require('./translationText.cjs');
 const { localAiOptions } = require('./localAi.cjs');
+const { neededFields, fillBlankSections, validatePersonalOverview } = require('./personalOverview.cjs');
 
 function translationUnits(pages) {
   const units = [];
@@ -70,7 +71,14 @@ function createPreparationCommands(context, commands) {
       await notify(run);
     };
     try {
-      let source;
+      let source; let summary;
+      const evidenceReport = async () => {
+        if (!summary) {
+          const paper = paperFor(paperId);
+          summary = await commands.summarize_document_openai_compatible({ options: { ...localAiOptions(options.modelOptions), paperId, title: paper.title, authors: paper.authors.map(author => author.name).join('; '), outputLanguage: 'Chinese', documentText: source.markdown } });
+        }
+        return summary;
+      };
       await stage('parse', async () => {
         source = await sourceFor(paperId); run.state.warnings = source.warnings;
         for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:preparation-source', { paperId, pages: source.pages, jsonPath: source.jsonPath });
@@ -95,8 +103,7 @@ function createPreparationCommands(context, commands) {
           const before = paperFor(paperId);
           if (before.aiSummary?.trim()) return '已保留现有概览及手工修改';
           if (context.noteStore.listNotes({ paperId }).some(note => note.tags.includes('读书报告'))) return '已保留现有本地报告';
-          const summary = await commands.summarize_document_openai_compatible({ options: { ...localAiOptions(options.modelOptions), paperId, title: before.title, authors: before.authors.map(author => author.name).join('; '), outputLanguage: 'Chinese', documentText: source.markdown } });
-          const text = formatReport(summary, source.warnings);
+          const text = formatReport(await evidenceReport(), source.warnings);
           // Save a recovery before checking for edits made during inference.
           await writeJson(path.join(context.appPaths.dataDir, '.chatgpt-reports', `${hash([paperId, Date.now(), text])}.json`), { paperId, text, warnings: source.warnings });
           run.controller.signal.throwIfAborted();
@@ -114,6 +121,18 @@ function createPreparationCommands(context, commands) {
           for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:preparation-note', note);
           if (paperFor(paperId).aiSummary !== before.aiSummary) throw new Error('概览已被编辑，未覆盖；报告已单独保存。');
           await commands.library_update_paper({ request: { paperId, aiSummary: text } }); return '已生成并保存，可继续编辑';
+        });
+        await stage('personal', async () => {
+          const document = context.noteStore.getDocument(paperId, 'overview');
+          const fields = neededFields(document);
+          if (!fields.length) return document.drafts?.length ? '保留未保存草稿；保存草稿后可再次处理以填充空栏目' : '已保留现有内容及栏目设置';
+          const generated = await commands.summarize_personal_overview_local({ options: { ...localAiOptions(options.modelOptions), title: paperFor(paperId).title, fields, evidence: await evidenceReport(), signature: source.signature } });
+          validatePersonalOverview(generated, fields);
+          run.controller.signal.throwIfAborted();
+          await context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
+          const { filled } = fillBlankSections(context.noteStore, paperId, generated);
+          if (filled.length) for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:personal-overview-updated', { paperId });
+          return filled.length ? `已自动填充${filled.map(field => field === 'overview' ? '文献概览（1000–1500 字）' : '摘要').join('、')}` : '生成期间内容已修改，已保留你的修改';
         });
       }
       await stage('translation', async () => {

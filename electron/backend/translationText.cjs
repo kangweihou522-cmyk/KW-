@@ -14,6 +14,15 @@ function splitSentences(text) {
 }
 function selectionContext(text, selected) {
   const candidates = splitSentences(text).filter(sentence => sentence.includes(selected));
-  return new Set(candidates).size === 1 ? candidates[0] : normalizeText(text);
+  // A multi-sentence range has no single containing sentence. The selection
+  // itself is the only safe target; returning the page here expanded requests.
+  return new Set(candidates).size === 1 ? candidates[0] : normalizeText(selected);
 }
-module.exports = { normalizeText, splitSentences, selectionContext };
+function translationFitsSource(source, target) {
+  // Conservative guard for older contextual caches: a one-sentence source
+  // paired with an entire abstract must remain a reference, not an exact hit.
+  const sourceSentences = splitSentences(source).length;
+  const chineseStops = (String(target).match(/[。！？]+/gu) || []).length;
+  return chineseStops <= sourceSentences + 1;
+}
+module.exports = { normalizeText, splitSentences, selectionContext, translationFitsSource };

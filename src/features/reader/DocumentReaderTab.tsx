@@ -3738,7 +3738,7 @@ function DocumentReaderTab({
         return;
       }
 
-      setLeftPaneWidthRatio(clampPaneRatio((event.clientX - layoutRect.left) / layoutRect.width));
+      setLeftPaneWidthRatio(clampPaneRatio((event.clientX - layoutRect.left) / layoutRect.width, layoutRect.width));
     };
 
     const handlePointerUp = () => {

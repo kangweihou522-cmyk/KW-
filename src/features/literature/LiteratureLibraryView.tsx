@@ -567,7 +567,7 @@ export default function LiteratureLibraryView({
     const handlePointerMove = (event: PointerEvent) => {
       const start = detailsPanelResizeStartRef.current;
 
-      setDetailsPanelWidth(clampDetailsPanelWidth(start.width + start.clientX - event.clientX));
+      setDetailsPanelWidth(clampDetailsPanelWidth(Math.min(availableWidth - effectiveCategoryWidth - 240, start.width + start.clientX - event.clientX)));
     };
 
     const handlePointerUp = () => {
@@ -588,7 +588,7 @@ export default function LiteratureLibraryView({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [detailsPanelResizing]);
+  }, [detailsPanelResizing, availableWidth, effectiveCategoryWidth]);
 
   useEffect(() => {
     if (!categorySidebarResizing) {
@@ -598,7 +598,7 @@ export default function LiteratureLibraryView({
     const handlePointerMove = (event: PointerEvent) => {
       const start = categorySidebarResizeStartRef.current;
 
-      setCategorySidebarWidth(clampCategorySidebarWidth(start.width + event.clientX - start.clientX));
+      setCategorySidebarWidth(clampCategorySidebarWidth(Math.min(availableWidth - effectiveDetailsWidth - 240, start.width + event.clientX - start.clientX)));
     };
 
     const handlePointerUp = () => {
@@ -619,7 +619,7 @@ export default function LiteratureLibraryView({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [categorySidebarResizing]);
+  }, [categorySidebarResizing, availableWidth, effectiveDetailsWidth]);
 
   const handleStartCategorySidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();

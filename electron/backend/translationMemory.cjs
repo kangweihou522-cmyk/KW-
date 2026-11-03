@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const { normalizeText, selectionContext } = require('./translationText.cjs');
+const { normalizeText, selectionContext, splitSentences, translationFitsSource } = require('./translationText.cjs');
 function language(value, text) {
   const code = String(value || 'auto').toLowerCase();
   if (/^(english|en(?:-|$))/.test(code) || code === 'auto' && !/[\u3400-\u9fff]/u.test(text)) return 'en';
@@ -83,17 +83,38 @@ class TranslationMemory {
     // scoped to the paper and surrounding sentence; never return a parent as
     // the selected text's translation.
     const complete = options.background || context === normalized && /\s|[.!?。！？]/.test(normalized) || !context && /[.!?。！？]["')\]]?$/.test(normalized) && /\s/.test(normalized);
-    const key = complete ? baseKey : hash([family, 'selection-v2', scope, options.pageIndex, context, context ? null : options.location, normalized]);
+    const key = complete ? baseKey : hash([family, 'selection-v3', scope, options.pageIndex, context, context ? null : options.location, normalized]);
     const file = path.join(this.root, 'entries', `${key}.json`);
     const entry = { key, family, text: normalized, fragment: !complete, context: options.background ? normalizeText(options.context || '') : context, pageIndex: options.pageIndex };
     const decorate = (result, cached) => ({ ...result, reference, cached, cacheMatch: cached ? 'exact' : 'new' });
     const cached = await readJson(file);
-    if (cached?.translation) { await this.remember(scope, entry); return decorate(cached, true); }
+    if (cached?.translation && translationFitsSource(normalized, cached.translation)) { await this.remember(scope, entry); return decorate(cached, true); }
+    if (!options.background && scope) {
+      // Reuse sentence pairs produced by full translation. Only compose when
+      // every selected character is covered by exact source units. Never cut a
+      // Chinese paragraph using English character offsets or assumed ratios.
+      const parts = splitSentences(normalized);
+      if (parts.length > 1 && normalizeText(parts.join(' ')) === normalized) {
+        const index = (await this.index(scope)).filter(item => item.family === family && !item.fragment && (!Number.isInteger(options.pageIndex) || item.pageIndex === options.pageIndex || item.pageIndex === undefined));
+        const paired = [];
+        for (const part of parts) {
+          const unit = index.find(item => item.text === part);
+          const saved = unit && await readJson(path.join(this.root, 'entries', `${unit.key}.json`));
+          if (!saved?.translation || !translationFitsSource(part, saved.translation)) break;
+          paired.push(saved.translation);
+        }
+        if (paired.length === parts.length) {
+          const result = { translation: paired.join('\n\n'), sourceText: normalized, provider: 'offline-quality' };
+          await writeJson(file, result); await this.remember(scope, entry);
+          return { ...decorate(result, true), cacheMatch: 'aligned-sentences' };
+        }
+      }
+    }
     if (complete) {
       const model = this.context.qualityTranslation.lock?.model?.sha256;
       const legacyKey = hash(['v3', terms, model, 'offline-quality', options.source || 'English', options.target || 'Chinese', text.trim()]);
       const legacy = await readJson(path.join(this.context.appPaths.dataDir, '.selection-translations', `${legacyKey}.json`));
-      if (legacy?.translation) {
+      if (legacy?.translation && translationFitsSource(normalized, legacy.translation)) {
         const result = { translation: legacy.translation, sourceText: normalized, provider: 'offline-quality' };
         await writeJson(file, result); await this.remember(scope, entry); return decorate(result, true);
       }
@@ -107,7 +128,11 @@ class TranslationMemory {
     }
     const task = (async () => {
       options.signal?.throwIfAborted();
-      const translation = await this.context.qualityTranslation.translate(text, { ...options, context, terms });
+      let translation = await this.context.qualityTranslation.translate(text, { ...options, context: complete ? '' : context, selectionFragment: !complete, terms });
+      if (!complete && context !== normalized && !translationFitsSource(normalized, translation)) {
+        options.onReset?.(translation);
+        translation = await this.context.qualityTranslation.translate(text, { ...options, context: '', selectionFragment: true, terms });
+      }
       options.signal?.throwIfAborted();
       const result = { translation, sourceText: normalized, provider: 'offline-quality' };
       await writeJson(file, result); await this.remember(scope, entry); return result;

@@ -351,6 +351,9 @@ function parseSseJsonResponse(text, label) {
 }
 
 function applyCommonGenerationOptions(body, options) {
+  if (Number.isInteger(options.maxOutputTokens) && options.maxOutputTokens > 0) {
+    body[Object.hasOwn(body, 'input') ? 'max_output_tokens' : 'max_tokens'] = options.maxOutputTokens;
+  }
   if (typeof options.temperature === 'number') {
     body.temperature = options.temperature;
   }

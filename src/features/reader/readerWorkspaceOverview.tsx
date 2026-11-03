@@ -1,4 +1,5 @@
 import { PaperPersonalOverview } from './PaperPersonalOverview';
+import { ResizableOverviewPanel } from './ResizableOverviewPanel';
 import { ArrowRight, CircleStop, FileJson, FileText, Languages, ScanSearch, Sparkles } from 'lucide-react';
 import { useLocaleText } from '../../i18n/uiLanguage';
 import type { PaperSummary, PositionedMineruBlock } from '../../types/reader';
@@ -172,8 +173,8 @@ export function ReaderWorkspaceOverview({
             />
           ) : null}
 
-          <PaperPersonalOverview paperId={currentDocument.itemKey || currentDocument.workspaceId} />
-          <div data-tour="ai-summary">
+          <ResizableOverviewPanel name="personal" label="我的文献概览"><PaperPersonalOverview paperId={currentDocument.itemKey || currentDocument.workspaceId} /></ResizableOverviewPanel>
+          <ResizableOverviewPanel name="ai" label="AI 概览" initialHeight={440}><div data-tour="ai-summary">
             <SummaryPanel
               paperId={currentDocument.source === 'native-library' ? currentDocument.itemKey : currentDocument.workspaceId}
               paperTitle={currentDocument.title}
@@ -184,7 +185,7 @@ export function ReaderWorkspaceOverview({
               aiConfigured={aiConfigured}
               onGenerateSummary={onGenerateSummary}
             />
-          </div>
+          </div></ResizableOverviewPanel>
         </div>
 
         <div className="space-y-5">

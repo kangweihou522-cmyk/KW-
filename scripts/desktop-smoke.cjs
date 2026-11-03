@@ -44,6 +44,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  await require('./workflow-desktop-smoke.cjs').verifyNotesPreview(page,paper,home);
  await page.reload();await page.waitForTimeout(1800);const reopened=await page.evaluate(id=>window.paperquay.invoke('paper_document_get',{paperId:id}),paper.id);assert.equal(reopened.version,2);assert.equal(reopened.content.at(-1).title,'研究设计');console.log('PASS application reload retained overview versions.');
  await verifyLibraryOverview(page,paper,home,app);
+ await require('./layout-desktop-smoke.cjs').verifyFlexibleLayout(page,home);
  await require('./workflow-desktop-smoke.cjs').verifyPreparation(page,app,paper,home);
  await require('./workflow-desktop-smoke.cjs').verifyAttachmentFolder(page,app,paper,home);
  if(process.argv.includes('--metadata-lookup')) await require('./metadata-desktop-smoke.cjs').verifyLiveMetadata(app,page,home);

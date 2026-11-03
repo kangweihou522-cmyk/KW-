@@ -88,3 +88,32 @@ test('interactive requests run before queued background requests and aborted que
   const reading = queue.run(() => order.push('reading')); release();
   await Promise.all([first, background, reading, rejected]); assert.deepEqual(order, ['reading', 'background']);
 });
+
+test('a multi-sentence range composes only exact cached source pairs and never includes the following introduction', async t => {
+  const f = await fixture(t); const memory = f.create();
+  const a = 'Dietary irritants stimulate the nervous system and provoke somatosensory responses.';
+  const b = 'The sample size was 20, and no causal relationship was established.';
+  const intro = 'Introduction. Unselected discussion about 384 chickens.';
+  const translations = new Map([[a, '饮食刺激物刺激神经系统并引发体感反应。'], [b, '样本量为20，未建立因果关系。'], [intro, '引言。未选中的384只肉鸡讨论。']]);
+  const calls = [];
+  f.context.qualityTranslation.translate = async (text, options) => { calls.push({ text, context: options.context }); return translations.get(text) || '仅所选片段的译文。'; };
+  const context = `${a} ${b} ${intro}`;
+  for (const text of [a, b, intro]) await memory.translate(text, { documentId: 'long-paper', pageIndex: 0, background: true, context });
+  assert(calls.every(call => call.context === ''));
+  const selected = `${a}\n${b}`;
+  const result = await f.create().translate(selected, { documentId: 'long-paper', pageIndex: 0, selectionContext: context });
+  assert.equal(result.cacheMatch, 'aligned-sentences'); assert.equal(calls.length, 3);
+  assert.equal(result.translation, `${translations.get(a)}\n\n${translations.get(b)}`);
+  assert(!result.translation.includes('384'));
+  const partial = await memory.translate(`provoke somatosensory responses. ${b}`, { documentId: 'long-paper', pageIndex: 0, selectionContext: context });
+  assert.equal(partial.cached, false); assert.equal(calls.at(-1).context, '');
+  assert(!calls.at(-1).text.includes('Introduction'));
+});
+
+test('old sentence entries containing an expanded abstract are not reused as selected-text translations', async t => {
+  const f = await fixture(t); const memory = f.create(); const source = 'The sample size was 20.';
+  const { key } = memory.identity(source, {});
+  await writeJson(path.join(memory.root, 'entries', `${key}.json`), { translation: '完整摘要。未选中的方法。未选中的结果。未选中的讨论。引言。' });
+  assert.equal((await memory.translate(source, { documentId: 'paper' })).cached, false);
+  assert.equal(f.calls, 1);
+});

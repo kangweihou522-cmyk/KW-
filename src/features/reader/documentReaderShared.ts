@@ -26,8 +26,6 @@ export {
   sanitizeFilename,
 } from './documentReaderPdfPaths.ts';
 
-export const MIN_LEFT_PANE_RATIO = 0.28;
-export const MAX_LEFT_PANE_RATIO = 0.72;
 export const PANE_RATIO_STORAGE_KEY = 'paper-reader-pane-ratio-v2';
 
 export interface ReaderTabBridgeState {
@@ -85,15 +83,16 @@ export interface ScreenshotSelectionState {
   currentY: number | null;
 }
 
-export function clampPaneRatio(nextRatio: number): number {
-  return Math.min(MAX_LEFT_PANE_RATIO, Math.max(MIN_LEFT_PANE_RATIO, nextRatio));
+export function clampPaneRatio(nextRatio: number, availableWidth?: number): number {
+  const minimum = availableWidth ? Math.min(0.5, 120 / availableWidth) : 0.01;
+  return Math.min(1 - minimum, Math.max(minimum, Number.isFinite(nextRatio) ? nextRatio : 0.5));
 }
 
 export function loadPaneRatio(): number {
   try {
     const storedRatio = Number(localStorage.getItem(PANE_RATIO_STORAGE_KEY));
 
-    return Number.isFinite(storedRatio) ? clampPaneRatio(storedRatio) : 0.5;
+    return storedRatio > 0 && storedRatio < 1 ? storedRatio : 0.5;
   } catch {
     return 0.5;
   }

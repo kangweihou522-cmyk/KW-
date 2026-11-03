@@ -1,4 +1,5 @@
 import { PaperPersonalOverview } from './PaperPersonalOverview';
+import { ResizableOverviewPanel } from './ResizableOverviewPanel';
 import { ChatGptAssist } from './ChatGptAssist';
 ﻿import {
   ExternalLink,
@@ -290,7 +291,7 @@ function AssistantSidebar({
             ) : null}
 
             {activePanel === 'info' ? (
-              <div className="h-full overflow-y-auto p-3"><PaperPersonalOverview paperId={overviewStorageId || paperId || documentPdfName || documentTitle || 'standalone'} editable /></div>
+              <div className="h-full overflow-y-auto p-3"><ResizableOverviewPanel name="personal" label="我的文献概览"><PaperPersonalOverview paperId={overviewStorageId || paperId || documentPdfName || documentTitle || 'standalone'} editable /></ResizableOverviewPanel></div>
             ) : null}
 
             <div className="h-full min-h-0" hidden={activePanel !== 'notes'}>

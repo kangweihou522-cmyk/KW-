@@ -51,13 +51,22 @@ test('missing or legacy minimum panel sizes open a readable overview without ove
     assert.equal(loadDetailsPanelWidth(), 400);
     for (const width of [988, 1280, 1380, 1868]) {
       const result = resolveLibraryColumns(width, 248, 480);
-      assert(width - result.category - result.details >= 339);
+      assert(width - result.category - result.details >= 239);
       assert(result.details >= 300);
     }
   } finally {
     if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
     else Reflect.deleteProperty(globalThis, 'localStorage');
   }
+});
+
+test('navigation and details can grow beyond the former pixel and percentage limits', () => {
+  const wideNavigation = resolveLibraryColumns(2400, 900, 480);
+  assert.equal(wideNavigation.category, 900);
+  const wideOverview = resolveLibraryColumns(2400, 248, 1400);
+  assert.equal(wideOverview.details, 1400);
+  const constrained = resolveLibraryColumns(1000, 900, 1400);
+  assert(constrained.category + constrained.details <= 760);
 });
 
 function category(overrides: Partial<LiteratureCategory> & Pick<LiteratureCategory, 'id' | 'name'>): LiteratureCategory {
@@ -241,7 +250,7 @@ test('resolveSelectedPaperId preserves valid selection and falls back to first p
 test('panel width and category signature helpers are stable', () => {
   assert.equal(clampDetailsPanelWidth(100), 320);
   assert.equal(clampDetailsPanelWidth(400.4), 400);
-  assert.equal(clampDetailsPanelWidth(900), 760);
+  assert.equal(clampDetailsPanelWidth(900), 900);
   assert.equal(categorySignature('  AI ', null), 'root::ai');
   assert.equal(categorySignature('AI', 'parent'), 'parent::ai');
 });

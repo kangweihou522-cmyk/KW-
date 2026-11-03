@@ -423,10 +423,10 @@ function SelectionPanel({
       title={isPdfBlockExcerpt ? l('段落译文', 'Paragraph Translation') : l('划词翻译', 'Selection Translation')}
       description={l(
         isPdfBlockExcerpt
-          ? '点击 PDF 段落后可查看缓存译文，并加入问答上下文。'
+          ? '在 PDF 中右键选择“翻译此段”，可查看段落译文并加入问答上下文。'
           : '选中文本后可快速翻译，并加入问答上下文。',
         isPdfBlockExcerpt
-          ? 'Click a PDF paragraph to view its cached translation and append it to the QA context.'
+          ? 'Right-click a PDF paragraph and choose Translate This Paragraph to view its translation and append it to the QA context.'
           : 'Translate selected text quickly and append it to the QA context.',
       )}
       icon={<Languages className="h-4 w-4" strokeWidth={1.8} />}

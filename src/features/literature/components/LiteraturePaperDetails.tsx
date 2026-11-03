@@ -9,6 +9,7 @@ import { loadPaperHistory, PAPER_READING_HEATMAP_UPDATED_EVENT } from '../../../
 import { formatReadingDuration } from '../../pdf/pdfReadingHeatmap';
 import { isPaperPipelineActionDisabled } from '../../reader/paperTaskState';
 import { PaperPersonalOverview } from '../../reader/PaperPersonalOverview';
+import { ResizableOverviewPanel } from '../../reader/ResizableOverviewPanel';
 import { paperPdfPath } from '../literatureUi';
 import { LibraryPopover } from './LibraryPopover';
 import LiteratureReadingTimeChart from './LiteratureReadingTimeChart';
@@ -71,8 +72,8 @@ export default function LiteraturePaperDetails({ selectedPaper, saving, onOpenPa
         {error && <p role="alert" className="break-words text-xs text-rose-600">{error}</p>}
         {actionState && actionState.status !== 'success' && <div role={actionState.status === 'error' ? 'alert' : 'status'} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-5 ${actionState.status === 'error' ? 'border-rose-200 text-rose-600' : 'border-[var(--pq-accent-border)] text-[var(--pq-accent)]'}`}>{actionState.status === 'running' && <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />}<span className="break-words">{actionState.message || actionState.label}</span></div>}
         <PaperPreparationControls key={`prepare:${selectedPaper.id}`} paper={selectedPaper} />
-        <PaperPersonalOverview key={`personal:${selectedPaper.id}`} paperId={selectedPaper.id} />
-        <PaperAiOverview key={`ai:${selectedPaper.id}`} paper={selectedPaper} />
+        <ResizableOverviewPanel name="personal" label="我的文献概览"><PaperPersonalOverview key={`personal:${selectedPaper.id}`} paperId={selectedPaper.id} /></ResizableOverviewPanel>
+        <ResizableOverviewPanel name="ai" label="AI 概览" initialHeight={440}><PaperAiOverview key={`ai:${selectedPaper.id}`} paper={selectedPaper} /></ResizableOverviewPanel>
       </div> : <div className="pq-card border-dashed p-8 text-center text-sm text-[var(--pq-text-muted)]">{l('选择一篇文献查看概览。', 'Select a paper to view its overview.')}</div>}
     </div>
   </aside>;

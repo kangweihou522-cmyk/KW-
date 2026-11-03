@@ -7,7 +7,8 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { FilePlus2 } from 'lucide-react';
+import { FilePlus2, Languages } from 'lucide-react';
+import { pdfCanvasPixelBudget } from './pdfCanvasQuality';
 import {
   AnnotationEditorType,
   AnnotationMode,
@@ -110,7 +111,6 @@ const USER_SCROLL_RESTORE_GUARD_MS = 700;
 const SCROLL_EMIT_TRAILING_MS = 360;
 const THUMBNAIL_RENDER_IDLE_MS = 420;
 const OVERLAY_PAGE_RADIUS = 1;
-const PDF_VIEWER_MAX_CANVAS_PIXELS = 5_242_880;
 const PDF_SELECTION_COMMIT_RETRY_DELAYS = [48, 120, 240, 420];
 
 type BBoxPageSizeSource = Pick<
@@ -1040,7 +1040,7 @@ function PdfViewer({
   );
 
   const blockContextMenuEntries = useMemo<ContextMenuEntry[]>(() => {
-    if (!blockContextMenu || !onAddBlockToNote) {
+    if (!blockContextMenu) {
       return [];
     }
 
@@ -1052,19 +1052,29 @@ function PdfViewer({
 
     return [
       {
+        id: 'translate-block',
+        label: l('翻译此段', 'Translate This Paragraph'),
+        icon: <Languages className="h-4 w-4" strokeWidth={1.9} />,
+        onSelect: () => onBlockSelect(blockContextMenu.block, {
+          anchorClientX: blockContextMenu.x, anchorClientY: blockContextMenu.y,
+          anchorClientRect: blockContextMenu.anchorClientRect, placement: 'bottom',
+          pdfLocation: buildBlockPdfLocation(blockContextMenu.block),
+        }),
+      },
+      {
         id: 'add-block-to-note',
         label: l('整块加入笔记', 'Add Whole Block to Note'),
         icon: <FilePlus2 className="h-4 w-4" strokeWidth={1.9} />,
         tone: 'accent',
-        disabled: !selection,
+        disabled: !selection || !onAddBlockToNote,
         onSelect: () => {
-          if (selection) {
+          if (selection && onAddBlockToNote) {
             onAddBlockToNote(blockContextMenu.block, selection);
           }
         },
       },
     ];
-  }, [blockContextMenu, buildBlockSelectionPayload, l, onAddBlockToNote]);
+  }, [blockContextMenu, buildBlockSelectionPayload, buildBlockPdfLocation, l, onAddBlockToNote, onBlockSelect]);
 
   const { heatmap: localReadingHeatmap, maxBinMs: maxReadingHeatmapBinMs } =
     usePdfReadingHeatmap({
@@ -1772,7 +1782,7 @@ function PdfViewer({
           enableHighlightFloatingButton: false,
           annotationEditorHighlightColors: buildPdfJsHighlightColorOptions(),
           enableHWA: true,
-          maxCanvasPixels: PDF_VIEWER_MAX_CANVAS_PIXELS,
+          maxCanvasPixels: pdfCanvasPixelBudget(window.innerWidth, window.innerHeight, window.devicePixelRatio, (navigator as Navigator & { deviceMemory?: number }).deviceMemory),
         } as any);
 
         pdfViewerRef.current = pdfViewer;
@@ -2366,7 +2376,7 @@ function PdfViewer({
     };
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (editorToolRef.current !== 'none') {
+      if (editorToolRef.current !== 'none' || !event.altKey) {
         emitBlockHover(null);
         return;
       }
@@ -2416,7 +2426,7 @@ function PdfViewer({
     };
 
     const handlePointerUp = (event: PointerEvent) => {
-      if (editorToolRef.current !== 'none') {
+      if (editorToolRef.current !== 'none' || !event.altKey) {
         pointerStartRef.current = null;
         return;
       }
@@ -2505,7 +2515,9 @@ function PdfViewer({
     };
 
     const handleClick = (event: MouseEvent) => {
-      if (editorToolRef.current !== 'none') {
+      // Ordinary clicks/double clicks and drags belong to the native PDF text
+      // layer. Whole blocks require an explicit Alt-click or context action.
+      if (editorToolRef.current !== 'none' || !event.altKey) {
         return;
       }
 
@@ -2570,7 +2582,7 @@ function PdfViewer({
     };
 
     const handleContextMenu = (event: MouseEvent) => {
-      if (!onAddBlockToNote || editorToolRef.current !== 'none') {
+      if (editorToolRef.current !== 'none') {
         return;
       }
 

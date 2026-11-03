@@ -5,6 +5,7 @@ import { ReaderPreferencesContext } from './ReaderPreferencesContext';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -58,7 +59,6 @@ import {
 } from './paperTaskState';
 import {
   ASSISTANT_PANEL_WIDTH_STORAGE_KEY,
-  MAX_ASSISTANT_PANEL_WIDTH,
   MIN_ASSISTANT_PANEL_WIDTH,
   loadStoredNumber,
 } from './readerWorkspaceShared';
@@ -135,6 +135,9 @@ function Reader({ workspaceActive = true }: ReaderProps) {
     let disposed = false; const disposers: Array<() => void> = [];
     const keep = (off: () => void) => { if (disposed) off(); else disposers.push(off); };
     void listen<Note>('paperdesk:preparation-note', event => { if (event.payload?.id) emitNoteChanged({ action: 'created', noteId: event.payload.id, note: event.payload, updatedAt: event.payload.updatedAt }); }).then(keep);
+    void listen<{ paperId: string }>('paperdesk:personal-overview-updated', event => {
+      window.dispatchEvent(new CustomEvent('paperdesk:personal-overview-updated', { detail: event.payload }));
+    }).then(keep);
     void listen<{ paperId: string; pages: unknown; jsonPath: string }>('paperdesk:preparation-source', event => {
       window.dispatchEvent(new CustomEvent('paperdesk:local-parse-ready', { detail: { workspaceId: `native-library:${event.payload.paperId}`, pages: parseMineruPages(event.payload.pages), jsonPath: event.payload.jsonPath, status: '一键处理：本地解析结果已就绪' } }));
     }).then(keep);
@@ -178,6 +181,14 @@ function Reader({ workspaceActive = true }: ReaderProps) {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [preferredPreferencesSection, setPreferredPreferencesSection] = useState<PreferencesSectionKey | undefined>(undefined);
   const readerMainRef = useRef<HTMLDivElement | null>(null);
+  const [readerMainWidth, setReaderMainWidth] = useState(window.innerWidth);
+  useLayoutEffect(() => {
+    const element = readerMainRef.current;
+    if (!element) return;
+    const update = () => setReaderMainWidth(element.clientWidth);
+    const observer = new ResizeObserver(update); observer.observe(element); update();
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     const openReport = (event: Event) => {
       const detail = (event as CustomEvent<{ paperId: string; title: string }>).detail;
@@ -198,8 +209,9 @@ function Reader({ workspaceActive = true }: ReaderProps) {
   const [readerAssistantPanelWidth, setReaderAssistantPanelWidth] = useState(() => {
     const stored = loadStoredNumber(ASSISTANT_PANEL_WIDTH_STORAGE_KEY, 408);
     // Older fresh profiles saved Number(null) as 0, hiding all sidebar content.
-    return stored < MIN_ASSISTANT_PANEL_WIDTH ? 408 : Math.min(stored, Math.max(MIN_ASSISTANT_PANEL_WIDTH, window.innerWidth - 400));
+    return stored < MIN_ASSISTANT_PANEL_WIDTH ? 408 : stored;
   });
+  const effectiveAssistantPanelWidth = Math.min(readerAssistantPanelWidth, Math.max(MIN_ASSISTANT_PANEL_WIDTH, readerMainWidth - 128));
   const [readerAssistantPanelResizing, setReaderAssistantPanelResizing] = useState(false);
   const [readerQaSessions, setReaderQaSessions] = useState<DocumentChatSession[]>(() => [
     createQaSession(settings.uiLanguage),
@@ -405,10 +417,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
         return;
       }
 
-      const boundedMaxWidth = Math.min(
-        MAX_ASSISTANT_PANEL_WIDTH,
-        Math.max(MIN_ASSISTANT_PANEL_WIDTH, mainRect.width - 120),
-      );
+      const boundedMaxWidth = Math.max(MIN_ASSISTANT_PANEL_WIDTH, mainRect.width - 128);
       const nextWidth = Math.round(
         Math.min(
           boundedMaxWidth,
@@ -937,6 +946,11 @@ function Reader({ workspaceActive = true }: ReaderProps) {
                     role="separator"
                     aria-orientation="vertical"
                     aria-label={l('调整问答侧栏宽度', 'Resize assistant sidebar')}
+                    tabIndex={0}
+                    aria-valuemin={MIN_ASSISTANT_PANEL_WIDTH}
+                    aria-valuenow={effectiveAssistantPanelWidth}
+                    onDoubleClick={() => setReaderAssistantPanelWidth(408)}
+                    onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setReaderAssistantPanelWidth(Math.min(Math.max(MIN_ASSISTANT_PANEL_WIDTH, readerMainWidth - 128), Math.max(MIN_ASSISTANT_PANEL_WIDTH, effectiveAssistantPanelWidth + (event.key === 'ArrowLeft' ? 24 : -24)))); } }}
                     onPointerDown={(event) => {
                       event.preventDefault();
                       setReaderAssistantPanelResizing(true);
@@ -951,7 +965,7 @@ function Reader({ workspaceActive = true }: ReaderProps) {
                 <aside className="flex min-h-0 shrink-0 self-stretch transition-all duration-300">
                   <AssistantSidebar
                     {...activeAssistantSidebarProps}
-                    panelWidth={readerAssistantPanelWidth}
+                    panelWidth={effectiveAssistantPanelWidth}
                     chatLayoutMode="compact"
                     onDetach={activeReaderBridge?.onDetachAssistant}
                   />

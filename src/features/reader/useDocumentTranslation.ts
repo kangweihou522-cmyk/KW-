@@ -883,7 +883,10 @@ export function useDocumentTranslation({
           const page = selectedExcerpt.pdfLocation?.pageNumber;
           const localText = flatBlocks.filter(block => !page || block.pageIndex === page - 1).map(extractTranslatableMarkdownFromMineruBlock).join(' ').replace(/\s+/g, ' ');
           const needle = selectedExcerpt.text.replace(/\s+/g, ' ').trim(); const offset = localText.indexOf(needle);
-          const selectionContext = offset >= 0 && offset === localText.lastIndexOf(needle) ? localText.slice(Math.max(0, offset - 1000), offset + needle.length + 1000) : '';
+          const containingSentence = offset >= 0 && offset === localText.lastIndexOf(needle)
+            ? Array.from(new Intl.Segmenter('en', { granularity: 'sentence' }).segment(localText)).find(part => part.segment.includes(needle))?.segment.trim()
+            : undefined;
+          const selectionContext = containingSentence || needle;
           const result = await invoke<{ translation: string; cached: boolean; provider: string; cacheMatch?: string; sourceText?: string; reference?: { sourceText: string; translation: string } | null }>('selection_translate', {
             text: selectedExcerpt.text, source: settings.translationSourceLanguage, target: settings.translationTargetLanguage,
             selectionContext, location: selectedExcerpt.pdfLocation?.bbox || selectedExcerpt.blockId, documentId: currentDocument.workspaceId, pdfPath: currentDocument.localPdfPath, pageIndex: selectedExcerpt.pdfLocation?.pageNumber ? selectedExcerpt.pdfLocation.pageNumber - 1 : undefined, provider: settings.selectionTranslationProvider, consent: settings.selectionTranslationConsent, requestId: onlineRequestId,

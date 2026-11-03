@@ -37,11 +37,10 @@ export type PathExists = (path: string) => Promise<boolean>;
 export const DETAILS_PANEL_WIDTH_STORAGE_KEY = 'paperquay-literature-details-width-v2';
 export const DETAILS_PANEL_DEFAULT_WIDTH = 480;
 const DETAILS_PANEL_MIN_WIDTH = 320;
-const DETAILS_PANEL_MAX_WIDTH = 760;
 export const CATEGORY_SIDEBAR_WIDTH_STORAGE_KEY = 'paperquay-literature-category-sidebar-width-v1';
 export const CATEGORY_SIDEBAR_DEFAULT_WIDTH = 248;
 const CATEGORY_SIDEBAR_MIN_WIDTH = 200;
-const CATEGORY_SIDEBAR_MAX_WIDTH = 420;
+export const LIBRARY_CONTENT_MIN_WIDTH = 240;
 
 export function filterDemoPapers(
   demoLibrary: LiteratureLibraryDemoState,
@@ -103,13 +102,13 @@ export function clampFloatingMenuPosition(
 }
 
 export function clampDetailsPanelWidth(width: number): number {
-  return Math.max(DETAILS_PANEL_MIN_WIDTH, Math.min(DETAILS_PANEL_MAX_WIDTH, Math.round(width)));
+  return Math.max(DETAILS_PANEL_MIN_WIDTH, Math.round(width));
 }
 
 /** Fit all three columns inside the window while retaining the user's preferred sizes. */
 export function resolveLibraryColumns(availableWidth: number, preferredCategory: number, preferredDetails: number) {
-  const category = Math.min(preferredCategory, Math.max(200, availableWidth * 0.2));
-  const details = Math.min(preferredDetails, Math.max(300, availableWidth - category - 340));
+  const category = Math.min(clampCategorySidebarWidth(preferredCategory), Math.max(CATEGORY_SIDEBAR_MIN_WIDTH, availableWidth - DETAILS_PANEL_MIN_WIDTH - LIBRARY_CONTENT_MIN_WIDTH));
+  const details = Math.min(clampDetailsPanelWidth(preferredDetails), Math.max(DETAILS_PANEL_MIN_WIDTH, availableWidth - category - LIBRARY_CONTENT_MIN_WIDTH));
   return { category: Math.round(category), details: Math.round(details) };
 }
 
@@ -129,10 +128,7 @@ export function loadDetailsPanelWidth(): number {
 }
 
 export function clampCategorySidebarWidth(width: number): number {
-  return Math.max(
-    CATEGORY_SIDEBAR_MIN_WIDTH,
-    Math.min(CATEGORY_SIDEBAR_MAX_WIDTH, Math.round(width)),
-  );
+  return Math.max(CATEGORY_SIDEBAR_MIN_WIDTH, Math.round(width));
 }
 
 export function loadCategorySidebarWidth(): number {

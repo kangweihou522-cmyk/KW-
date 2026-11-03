@@ -325,7 +325,7 @@ function ReadingStage(props: ReaderWorkspaceProps & { immersiveReading: boolean 
           <section
             className="min-h-0 min-w-0 bg-[#eef3f9] transition-all duration-300"
             style={{
-              width: showDualPane ? `calc(${(leftPaneWidthRatio * 100).toFixed(2)}% - 4px)` : '100%',
+              width: showDualPane ? `clamp(120px, calc(${(leftPaneWidthRatio * 100).toFixed(2)}% - 4px), calc(100% - 128px))` : '100%',
             }}
           >
             <PdfViewer
