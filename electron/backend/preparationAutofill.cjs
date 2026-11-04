@@ -21,8 +21,8 @@ function chineseTitleRequest(library, paperId, expectedTitle, translation) {
 
 function abstractHeading(text) {
   const clean = String(text).trim();
-  if (/^(?:abstract|summary|摘要)$/iu.test(clean.replace(/\s/gu, ''))) return '';
-  const match = clean.match(/^(?:ABSTRACT\s+|Abstract\s*[:：]\s*|摘要\s*[:：]?\s*)(.+)$/u);
+  if (/^(?:abstract|summary|摘要)[:：]?$/iu.test(clean.replace(/\s/gu, ''))) return '';
+  const match = clean.match(/^(?:abstract|summary)\s*[:：]\s*(.+)$/iu) || clean.match(/^(?:ABSTRACT\s+|摘要\s*[:：]?\s*)(.+)$/u);
   return match ? match[1] : null;
 }
 function isAbstractEnd(text) {

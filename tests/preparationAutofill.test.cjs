@@ -17,6 +17,10 @@ test('abstract extraction respects column bounds, spaced headings, and introduct
   assert(!result.text.includes('384')); assert(!result.text.includes('Keywords'));
   const inline = extractAbstract([[{ content: 'Abstract: The sample size was 20. The study does not establish causality.' }, { content: 'Keywords: sample' }, { content: 'Unselected content' }]]);
   assert.equal(inline.text, result.text);
+  for (const label of ['ABSTRACT:', 'SUMMARY:', 'A B S T R A C T:']) {
+    assert.equal(extractAbstract([[{ content: label }, { content: result.text }, { content: 'Keywords: sample' }]]).text, result.text);
+  }
+  assert.equal(extractAbstract([[{ content: `ABSTRACT: ${result.text}` }, { content: 'Keywords: sample' }]]).text, result.text);
 });
 
 test('abstract extraction uses source metadata when no reliable PDF abstract is found, not generated summaries', () => {
