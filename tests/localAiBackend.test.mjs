@@ -39,33 +39,35 @@ test('default local model is usable without ChatGPT or an API key; external endp
   }
 });
 
-test('personal overview enforces length, repairs once and reuses a successful local response', async t => {
-  const overview = '根据证据概括论文，研究使用二十个样本，尚未证明因果关系。'.repeat(40);
-  assert(overview.length >= 1000 && overview.length <= 1500);
+test('an 810-character personal overview is saved immediately without length repair and reused', async t => {
+  const overview = '根据论文证据概括。'.repeat(90);
+  assert.equal(overview.length, 810);
   const { baseUrl, requests } = await server(t, (_req, res, body, calls) => {
-    assert.match(body.messages[0].content, /1000–1500/);
+    assert.match(body.messages[0].content, /不限制字数/);
+    assert(!body.messages[0].content.includes('1000'));
     assert.equal(body.max_tokens, 4096);
     assert.match(body.messages[1].content, /全文证据/);
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ overview: calls.length === 1 ? '长度不足的概括' : overview, abstract: '二十个样本，未证明因果关系。' }) } }] }));
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ overview }) } }] }));
   });
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paperdesk-personal-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const commands = createAiCommands({ appPaths: { dataDir: directory } });
-  const options = { baseUrl, fields: ['overview', 'abstract'], title: 'Trial', evidence: { background: '全文证据', keyFindings: ['n=20'] }, signature: 'source-v1' };
+  const options = { baseUrl, fields: ['overview'], title: 'Trial', evidence: { background: '全文证据', keyFindings: ['n=20'] }, signature: 'source-v1' };
   const result = await commands.summarize_personal_overview_local({ options });
-  assert.equal(result.overview, overview); assert.equal(requests.length, 2);
-  assert.deepEqual(await commands.summarize_personal_overview_local({ options }), result); assert.equal(requests.length, 2);
+  assert.equal(result.overview, overview); assert.equal(requests.length, 1);
+  assert.deepEqual(await commands.summarize_personal_overview_local({ options }), result); assert.equal(requests.length, 1);
 });
 
-test('a persistently short personal overview is rejected instead of cached as completed', async t => {
+test('short overview is accepted on the first response without coupling to an abstract', async t => {
   const { baseUrl, requests } = await server(t, (_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: { content: '{"overview":"太短","abstract":"摘要"}' } }] }));
   });
   const commands = createAiCommands({});
-  await assert.rejects(commands.summarize_personal_overview_local({ options: { baseUrl, fields: ['overview'], evidence: { overview: '材料' } } }), /1000–1500/);
-  assert.equal(requests.length, 2);
+  const result = await commands.summarize_personal_overview_local({ options: { baseUrl, fields: ['overview'], evidence: { overview: '材料' } } });
+  assert.equal(result.overview, '太短');
+  assert.equal(requests.length, 1);
 });
 
 test('real loopback chat, embeddings and model listing use only the local daemon', async (t) => {

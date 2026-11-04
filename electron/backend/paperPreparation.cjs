@@ -3,7 +3,8 @@ const path = require('node:path');
 const { hash, normalizeText, writeJson, readJson } = require('./translationMemory.cjs');
 const { splitSentences } = require('./translationText.cjs');
 const { localAiOptions } = require('./localAi.cjs');
-const { neededFields, fillBlankSections, validatePersonalOverview } = require('./personalOverview.cjs');
+const { neededFields, fillBlankSections, validatePersonalOverview, countCharacters } = require('./personalOverview.cjs');
+const { titleField, chineseTitleRequest, extractAbstract, translateAbstract } = require('./preparationAutofill.cjs');
 
 function translationUnits(pages) {
   const units = [];
@@ -71,14 +72,16 @@ function createPreparationCommands(context, commands) {
       await notify(run);
     };
     try {
-      let source; let summary;
+      let source; let summaryPromise;
       const evidenceReport = async () => {
-        if (!summary) {
+        if (!summaryPromise) {
           const paper = paperFor(paperId);
-          summary = await commands.summarize_document_openai_compatible({ options: { ...localAiOptions(options.modelOptions), paperId, title: paper.title, authors: paper.authors.map(author => author.name).join('; '), outputLanguage: 'Chinese', documentText: source.markdown } });
+          summaryPromise = commands.summarize_document_openai_compatible({ options: { ...localAiOptions(options.modelOptions), paperId, title: paper.title, authors: paper.authors.map(author => author.name).join('; '), outputLanguage: 'Chinese', documentText: source.markdown } });
         }
-        return summary;
+        return summaryPromise;
       };
+      const notifyPersonal = () => { for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:personal-overview-updated', { paperId }); };
+      const checkSource = () => context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
       await stage('parse', async () => {
         source = await sourceFor(paperId); run.state.warnings = source.warnings;
         for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:preparation-source', { paperId, pages: source.pages, jsonPath: source.jsonPath });
@@ -97,7 +100,32 @@ function createPreparationCommands(context, commands) {
             if (metadata[key] && latest[key] === before[key]) update[key] = metadata[key];
           }
           if (metadata.authors?.length && JSON.stringify(latest.authors) === JSON.stringify(before.authors)) update.authors = metadata.authors;
+          if (metadata.abstractText && !latest.abstractText?.trim()) update.abstractText = metadata.abstractText;
           await commands.library_update_paper({ request: update }); return '已核对出版记录';
+        });
+        await stage('title', async () => {
+          const before = paperFor(paperId); const field = titleField(context.store.load());
+          if (field && before.customFields?.[field.id]?.trim()) return '已保留现有中文标题';
+          const original = normalizeText(before.title || '');
+          if (!original || /\.pdf$/iu.test(original) || /^[\da-f_-]{12,}$/iu.test(original)) throw new Error('原标题为空或仍像文件名，请先补齐原标题再翻译。');
+          const result = /[\u3400-\u9fff]/u.test(original) ? { translation: original, cached: true } : await context.translationMemory.translate(original, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, source: 'English', target: 'Chinese', background: true, signal: run.controller.signal });
+          if (!normalizeText(result.translation) || !/[\u3400-\u9fff]/u.test(result.translation)) throw new Error('翻译模型未返回有效中文标题，未填入。');
+          run.controller.signal.throwIfAborted(); await checkSource();
+          const request = chineseTitleRequest(context.store.load(), paperId, before.title, result.translation);
+          if (!request) return '生成期间中文标题已填写，已保留';
+          await commands.library_update_paper({ request });
+          return result.cached ? '已复用译文补齐中文标题' : '已翻译并补齐中文标题';
+        });
+        await stage('abstract', async () => {
+          const document = context.noteStore.getDocument(paperId, 'overview');
+          if (!neededFields(document).includes('abstract')) return document.drafts?.length ? '保留未保存草稿；保存后可补齐摘要翻译' : '已保留现有摘要及栏目设置';
+          const abstract = extractAbstract(source.pages, paperFor(paperId).abstractText);
+          const result = await translateAbstract(abstract, context.translationMemory, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, signal: run.controller.signal });
+          validatePersonalOverview({ abstract: result.translation }, ['abstract']);
+          run.controller.signal.throwIfAborted(); await checkSource();
+          const { filled } = fillBlankSections(context.noteStore, paperId, { abstract: result.translation });
+          if (filled.length) notifyPersonal();
+          return filled.length ? result.total ? `已翻译并填入摘要，复用 ${result.cached}/${result.total} 句缓存` : '已填入原有中文摘要' : '生成期间摘要已修改，已保留';
         });
         await stage('overview', async () => {
           const before = paperFor(paperId);
@@ -124,15 +152,15 @@ function createPreparationCommands(context, commands) {
         });
         await stage('personal', async () => {
           const document = context.noteStore.getDocument(paperId, 'overview');
-          const fields = neededFields(document);
+          const fields = neededFields(document).filter(field => field === 'overview');
           if (!fields.length) return document.drafts?.length ? '保留未保存草稿；保存草稿后可再次处理以填充空栏目' : '已保留现有内容及栏目设置';
           const generated = await commands.summarize_personal_overview_local({ options: { ...localAiOptions(options.modelOptions), title: paperFor(paperId).title, fields, evidence: await evidenceReport(), signature: source.signature } });
           validatePersonalOverview(generated, fields);
           run.controller.signal.throwIfAborted();
           await context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
           const { filled } = fillBlankSections(context.noteStore, paperId, generated);
-          if (filled.length) for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:personal-overview-updated', { paperId });
-          return filled.length ? `已自动填充${filled.map(field => field === 'overview' ? '文献概览（1000–1500 字）' : '摘要').join('、')}` : '生成期间内容已修改，已保留你的修改';
+          if (filled.length) notifyPersonal();
+          return filled.length ? `已自动填充文献概览（${countCharacters(generated.overview)} 字，无字数限制）` : '生成期间内容已修改，已保留你的修改';
         });
       }
       await stage('translation', async () => {

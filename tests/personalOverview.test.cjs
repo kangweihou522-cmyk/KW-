@@ -13,13 +13,13 @@ test('auto-fill merges against the latest version and preserves manual edits, cu
   assert.deepEqual(neededFields({ content: [], version: 1 }), []);
 });
 
-test('unpublished drafts prevent auto-fill and word count rejects short, long or empty model output', () => {
+test('unpublished drafts prevent auto-fill; any nonempty overview length is accepted', () => {
   assert.deepEqual(neededFields({ content: null, drafts: [{ content: [] }] }), []);
   const store = { getDocument: () => ({ content: null, drafts: [{ content: [] }] }), saveDocument: () => assert.fail('draft overwritten') };
   assert.deepEqual(fillBlankSections(store, 'paper', { abstract: '摘要' }).filled, []);
   assert.equal(countCharacters('中 文\n，12'), 5);
-  assert.throws(() => validatePersonalOverview({ overview: '短内容' }, ['overview']), /1000–1500/);
-  assert.throws(() => validatePersonalOverview({ overview: '文'.repeat(1501) }, ['overview']), /1000–1500/);
+  assert.equal(validatePersonalOverview({ overview: '短内容' }, ['overview']).overview, '短内容');
+  for (const length of [600, 810, 1501, 5000]) assert.equal(validatePersonalOverview({ overview: '文'.repeat(length) }, ['overview']).overview.length, length);
   assert.throws(() => validatePersonalOverview({ abstract: '' }, ['abstract']), /有效摘要/);
   assert.equal(validatePersonalOverview({ overview: '文'.repeat(1000) }, ['overview']).overview.length, 1000);
 });

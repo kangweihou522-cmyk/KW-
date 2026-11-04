@@ -70,7 +70,10 @@ async function verifyPdfSelectionAndDpi(page, app, home) {
   const selected = await page.evaluate(() => window.getSelection().toString().replace(/\s+/g, ' ').trim());
   await page.screenshot({ path: path.join(home, 'pdf-native-multi-line-selection.png') });
   assert.equal(selected, 'The control group included 20 participants. The study does not establish causality.');
-  await page.waitForFunction(() => (document.querySelector('[data-selection-translation]')?.textContent.match(/测试离线译文/g) || []).length === 2);
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-selection-translation]')?.textContent || '';
+    return text.includes('测试离线译文：样本量为20，未证明因果关系。') && text.includes('该研究未建立因果关系。');
+  });
   assert.equal(await app.evaluate(() => globalThis.workflowModelCalls), callsBeforeRange, 'An exact cached range invoked the model again.');
   console.log('PASS real multi-line drag: only both selected sentences shown, composed from full-translation cache without model inference.');
 

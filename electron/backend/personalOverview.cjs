@@ -19,8 +19,7 @@ function validatePersonalOverview(value, fields) {
   const result = {};
   for (const field of fields) {
     const text = typeof value?.[field] === 'string' ? value[field].trim() : '';
-    if (!text || /^(?:原文未报告|材料不足|尚未填写)/u.test(text)) throw new Error('模型未生成有效摘要或文章概括，未填入空内容。');
-    if (field === 'overview' && (countCharacters(text) < 1000 || countCharacters(text) > 1500)) throw new Error(`文章概括为 ${countCharacters(text)} 字，未达到 1000–1500 字要求，未填入；可再次一键处理重试。`);
+    if (!text || /^(?:原文未报告[。.]?|材料不足[。.]?|尚未填写)$/u.test(text)) throw new Error('模型未生成有效摘要或文章概括，未填入空内容。');
     result[field] = text;
   }
   return result;

@@ -437,7 +437,7 @@ export default function LiteratureLibraryView({
       return;
     }
 
-    const [nextCategories, , allPapers] = await Promise.all([
+    const [nextCategories, , allPapers, nextSettings] = await Promise.all([
       listLibraryCategories(),
       refreshPapers(),
       listLibraryPapers({
@@ -445,9 +445,11 @@ export default function LiteratureLibraryView({
         sortDirection: 'asc',
         limit: 5000,
       }),
+      getLibrarySettings(),
     ]);
 
     setCategories(nextCategories);
+    setSettings(nextSettings);
     void refreshMineruStatusesForPapers(allPapers);
   }, [demoLibrary, refreshMineruStatusesForPapers, refreshPapers, resolveDemoPapers]);
 

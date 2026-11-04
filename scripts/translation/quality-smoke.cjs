@@ -21,6 +21,16 @@ async function main(){
   engine.download=async()=>{throw new Error('Connection recovery must reuse installed weights');};let resets=0;
   const recovered=await engine.translate('The sample size was 20.',{onReset:()=>resets++});assert.equal(resets,1);assert.match(recovered,/[\u3400-\u9fff]/);assert(recovered.includes('20'));
   console.log('PASS: real native stale-connection recovery restarts once and reuses installed model weights.');
+  const {TranslationMemory}=require('../../electron/backend/translationMemory.cjs');
+  const {translateAbstract}=require('../../electron/backend/preparationAutofill.cjs');
+  let autofillCalls=0;
+  const memory=new TranslationMemory({...context,qualityTranslation:{lock:engine.lock,translate:async(...args)=>{autofillCalls++;return engine.translate(...args);}}});
+  const options={documentId:'native-autofill-smoke',source:'English',target:'Chinese',background:true};
+  const title=await memory.translate('Effects of dietary capsaicinoids on broiler growth performance',options);assert.match(title.translation,/[\u3400-\u9fff]/);
+  const abstract={text:'The sample size was 20. The observational study does not establish causality.',pageIndex:0};
+  const translated=await translateAbstract(abstract,memory,options);assert.match(translated.translation,/[\u3400-\u9fff]/);assert(translated.translation.includes('20'));assert.match(translated.translation,/不|未|无法|不能/);
+  const calls=autofillCalls;const repeated=await translateAbstract(abstract,memory,options);assert.equal(repeated.cached,2);assert.equal(autofillCalls,calls);assert.equal(repeated.translation,translated.translation);
+  console.log('PASS: real native Chinese-title/original-abstract translation, preserved number/negation, and repeat abstract uses cache without inference.');
   console.log('PASS: actual Hy-MT2 Q4 inference, numbers, negation and custom terminology. Scientific accuracy and RTX3060 performance still require user review.');
  }finally{engine.close();}
 }

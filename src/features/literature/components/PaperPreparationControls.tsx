@@ -8,7 +8,7 @@ import { useReaderPreferences } from '../../reader/ReaderPreferencesContext';
 import { emitLibraryDataChanged } from '../libraryEvents';
 type Preparation = { paperId: string; status: string; running: boolean; paused: boolean; stage: string; steps: Record<string, { status: string; message?: string }>; completed: number; total: number; cached: number; message?: string; warnings?: string[] };
 type Translations = { units: Array<{ id: string; pageIndex: number; text: string; translation: string }> };
-const labels: Record<string, string> = { parse: '解析', metadata: '书目', overview: 'AI 概览', personal: '摘要与文献概览', translation: '翻译' };
+const labels: Record<string, string> = { parse: '解析', metadata: '书目', title: '中文标题', abstract: '摘要翻译', overview: 'AI 概览', personal: '文献概览', translation: '翻译' };
 
 export function PaperPreparationControls({ paper }: { paper: LiteraturePaper }) {
   const preferences = useReaderPreferences();
@@ -26,7 +26,7 @@ export function PaperPreparationControls({ paper }: { paper: LiteraturePaper }) 
     const apply = (next: Preparation | null) => {
       if (disposed || !next || next.paperId !== paper.id) return;
       setState(next);
-      const signature = [next.steps.metadata?.status, next.steps.overview?.status, next.running].join(':');
+      const signature = [next.steps.metadata?.status, next.steps.title?.status, next.steps.abstract?.status, next.steps.overview?.status, next.steps.personal?.status, next.running].join(':');
       if (signature !== previous.current) { previous.current = signature; emitLibraryDataChanged(); }
     };
     void listen<Preparation>('paperdesk:preparation-progress', event => apply(event.payload)).then(dispose => { if (disposed) dispose(); else unlisten = dispose; });
