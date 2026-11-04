@@ -3,6 +3,7 @@ import { listen } from '../platform/electron/event';
 import { emitLibraryDataChanged } from '../features/literature/libraryEvents';
 import type {
   AssignPaperCategoryRequest,
+  UpdatePaperCategoriesRequest,
   CreateCategoryRequest,
   DeletePaperRequest,
   FetchAllReferencesResult,
@@ -156,8 +157,13 @@ export async function assignPaperToLibraryCategory(
   try {
     return await invoke<LiteraturePaper>('library_assign_paper_category', { request });
   } catch (error) {
-    throw new Error(toErrorMessage(error, '移动文献到分类失败'));
+    throw new Error(toErrorMessage(error, '添加文献到分类失败'));
   }
+}
+
+export async function updatePaperCategories(request: UpdatePaperCategoriesRequest): Promise<LiteraturePaper> {
+  try { return await invoke<LiteraturePaper>('library_update_paper_categories', { request }); }
+  catch (error) { throw new Error(toErrorMessage(error, '更新文献分类失败')); }
 }
 
 export async function updateLibraryPaper(

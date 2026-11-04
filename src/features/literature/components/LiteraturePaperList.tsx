@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -11,6 +12,7 @@ import {
 import {
   BookOpenText,
   FilePlus2,
+  FolderOpen,
   GripVertical,
   RefreshCw,
   CheckCircle2,
@@ -21,8 +23,8 @@ import {
 } from 'lucide-react';
 import { useAppLocale, useLocaleText } from '../../../i18n/uiLanguage';
 import { useWheelScrollDelegate } from '../../../hooks/useWheelScrollDelegate';
-import type { ListPapersRequest, LiteraturePaper } from '../../../types/library';
-import { paperAuthors } from '../literatureUi';
+import type { ListPapersRequest, LiteratureCategory, LiteraturePaper } from '../../../types/library';
+import { categoryPath, paperAuthors } from '../literatureUi';
 import { PaperTags } from './PaperTags';
 import { PaperImpactFactor, PaperMetadataEditor } from './PaperMetadataEditor';
 import type { UpdatePaperRequest, MetadataLayout } from '../../../types/library';
@@ -43,6 +45,8 @@ interface LiteraturePaperListProps {
   onEnrichMetadata?: () => void;
   working: boolean;
   papers: LiteraturePaper[];
+  categories: LiteratureCategory[];
+  onManageCategories: (paper: LiteraturePaper) => void;
   paperStatuses: Record<string, LiteraturePaperListStatus>;
   showReadingHeatmap?: boolean;
   storageDir?: string;
@@ -82,6 +86,8 @@ export default function LiteraturePaperList({
   metadataLayout, metadataWorking, onEnrichMetadata,
   working,
   papers,
+  categories,
+  onManageCategories,
   paperStatuses,
   saving,
   onSavePaper,
@@ -105,6 +111,7 @@ export default function LiteraturePaperList({
 }: LiteraturePaperListProps) {
   const l = useLocaleText();
   const locale = useAppLocale();
+  const categoryNames = useMemo(() => new Map(categories.filter(category => !category.isSystem).map(category => [category.id, categoryPath(category.id, categories)])), [categories]);
   const rootRef = useRef<HTMLElement | null>(null);
   const handleWheelCapture = useWheelScrollDelegate({ rootRef });
   const [dropIndicator, setDropIndicator] = useState<{
@@ -581,6 +588,12 @@ export default function LiteraturePaperList({
                       </div>
                       {metadataLayout?.customFields.filter(field => !hiddenMetadata.has(field.id) && paper.customFields?.[field.id]?.trim()).map(field => <p key={field.id} className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-5"><span>{paper.customFields?.[field.id]}</span></p>)}
                       <PaperTags paper={paper} saving={saving} onSave={onSavePaper} />
+                      <div data-paper-categories className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--pq-text-muted)]" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+                        <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                        {paper.categoryIds.filter(id => categoryNames.has(id)).map(id => <span key={id} className="max-w-full truncate rounded border border-[var(--pq-border)] px-2 py-0.5" title={categoryNames.get(id)}>{categoryNames.get(id)}</span>)}
+                        {!paper.categoryIds.length && <span>{l('未分类', 'Uncategorized')}</span>}
+                        <button type="button" disabled={saving} aria-label={l('管理文献分类', 'Manage paper categories')} className="rounded px-2 py-1 text-[var(--pq-accent)] hover:bg-[var(--pq-accent-soft)] disabled:opacity-50" onClick={() => onManageCategories(paper)}>{l('管理分类', 'Manage categories')}</button>
+                      </div>
                     </div>
                   </div>
                   {showAfterIndicator ? (

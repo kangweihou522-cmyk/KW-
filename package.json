@@ -1,7 +1,7 @@
 {
   "name": "paperdesk",
   "private": true,
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "Local-first, no-paid-API literature workstation. Independent PaperQuay-derived edition.",
   "author": {
     "name": "PaperDesk contributors (derived from PaperQuay)"

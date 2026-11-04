@@ -50,6 +50,16 @@ export function flattenCategories(categories: LiteratureCategory[]): FlatLiterat
   return output;
 }
 
+export function categoryPath(categoryId: string, categories: LiteratureCategory[]): string {
+  const names: string[] = []; const seen = new Set<string>();
+  let current = categories.find(category => category.id === categoryId);
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id); names.unshift(current.name);
+    current = categories.find(category => category.id === current?.parentId);
+  }
+  return names.join(' / ');
+}
+
 export function categoryIcon(category: LiteratureCategory) {
   if (category.systemKey === 'favorites') {
     return <Star className="h-4 w-4" strokeWidth={1.8} />;

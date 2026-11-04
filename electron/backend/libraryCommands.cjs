@@ -626,6 +626,7 @@ function createLibraryCommands(context) {
 
     async library_import_pdfs({ request }) {
       const library = store.load();
+      if (request.targetCategoryId && !library.categories.some(category => category.id === request.targetCategoryId && !category.isSystem)) throw new Error('目标分类不存在或属于系统分组。');
       const results = [];
       const storageDir = library.settings.storageDir || path.join(appPaths.dataDir, 'paperquay-data');
       await fsp.mkdir(storageDir, { recursive: true });
@@ -642,6 +643,10 @@ function createLibraryCommands(context) {
           );
 
           if (duplicate) {
+            if (request.targetCategoryId && !duplicate.categoryIds.includes(request.targetCategoryId)) {
+              duplicate.categoryIds.push(request.targetCategoryId);
+              duplicate.updatedAt = now();
+            }
             results.push({ sourcePath, paper: duplicate, duplicated: true, existingPaperId: duplicate.id, status: 'duplicate', message: 'Duplicate PDF' });
             continue;
           }
@@ -731,13 +736,11 @@ function createLibraryCommands(context) {
     },
 
     async library_assign_paper_category({ request }) {
-      const library = store.load();
-      const paper = library.papers.find((item) => item.id === request.paperId);
-      if (!paper) throw new Error('Paper does not exist');
-      if (!paper.categoryIds.includes(request.categoryId)) paper.categoryIds.push(request.categoryId);
-      paper.updatedAt = now();
-      await store.save(library);
-      return paper;
+      return require('./paperCategories.cjs').updatePaperCategories(store, { paperId: request?.paperId, addCategoryIds: [request?.categoryId] });
+    },
+
+    async library_update_paper_categories({ request }) {
+      return require('./paperCategories.cjs').updatePaperCategories(store, request);
     },
 
     async library_list_tags() {

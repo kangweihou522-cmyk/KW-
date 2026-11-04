@@ -206,6 +206,12 @@ export interface AssignPaperCategoryRequest {
   categoryId: string;
 }
 
+export interface UpdatePaperCategoriesRequest {
+  paperId: string;
+  addCategoryIds: string[];
+  removeCategoryIds: string[];
+}
+
 export interface UpdatePaperRequest {
   metadataLayout?: MetadataLayout;
   customFields?: Record<string, string>;

@@ -206,7 +206,7 @@ export default function LiteratureCategorySidebar({
                 hasDragType(event, 'text/plain'))
             ) {
               event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
+              event.dataTransfer.dropEffect = hasDragType(event, 'application/x-paperquay-category-id') ? 'move' : 'copy';
               setDragOverCategoryId(category.id);
             }
           }}

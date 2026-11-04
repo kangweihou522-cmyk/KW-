@@ -11,7 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Sparkles, Star, Tag, Trash2 } from 'lucide-react';
+import { FolderOpen, Sparkles, Star, Tag, Trash2 } from 'lucide-react';
 import { useLocaleText } from '../../i18n/uiLanguage';
 import { localPathExists } from '../../services/desktop';
 import { lookupLiteratureMetadata } from '../../services/metadata';
@@ -32,6 +32,7 @@ import {
   updateLibraryPaper,
   updateLibraryCategory,
   updateLibrarySettings,
+  updatePaperCategories,
 } from '../../services/library';
 import {
   detectLocalZoteroDataDir,
@@ -46,6 +47,7 @@ import type {
   LiteraturePaperTaskState,
   ListPapersRequest,
   UpdatePaperRequest,
+  UpdatePaperCategoriesRequest,
 } from '../../types/library';
 import type {
   ZoteroCollection,
@@ -55,6 +57,7 @@ import { getFileNameFromPath } from '../../utils/text';
 import ImportConfirmationDialog from './components/ImportConfirmationDialog';
 import LibraryConfirmDialog from './components/LibraryConfirmDialog';
 import LibraryTextInputDialog from './components/LibraryTextInputDialog';
+import { PaperCategoryDialog } from './components/PaperCategoryDialog';
 import {
   mergeLocalPdfMetadataIntoDraft,
   mergeRemoteMetadataIntoDraft,
@@ -277,6 +280,7 @@ export default function LiteratureLibraryView({
   const [metadataDialogBusy, setMetadataDialogBusy] = useState(false);
   const [paperDragOverCategoryId, setPaperDragOverCategoryId] = useState<string | null>(null);
   const [tagDialogPaper, setTagDialogPaper] = useState<LiteraturePaper | null>(null);
+  const [categoryDialogPaper, setCategoryDialogPaper] = useState<LiteraturePaper | null>(null);
   const [paperSort, setPaperSort] = useState(loadPaperSortState);
   const [categorySidebarWidth, setCategorySidebarWidth] = useState(loadCategorySidebarWidth);
   const [categorySidebarResizing, setCategorySidebarResizing] = useState(false);
@@ -1300,7 +1304,7 @@ export default function LiteratureLibraryView({
       setLocalImportMetadataWorking(false);
       const duplicateSummary =
         duplicateNames.length > 0
-          ? l(` 重复：${duplicateNames.join('、')}`, ` Duplicates: ${duplicateNames.join(', ')}`)
+          ? l(` 重复：${duplicateNames.join('、')}。复用原文献记录，保留已有分类。`, ` Duplicates: ${duplicateNames.join(', ')}. Existing paper records and categories are kept.`)
           : '';
       const failedSummary =
         failedNames.length > 0
@@ -1672,7 +1676,7 @@ export default function LiteratureLibraryView({
   ) => {
     event.dataTransfer.setData('application/x-paperquay-paper-id', paper.id);
     event.dataTransfer.setData('text/plain', paper.id);
-    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.effectAllowed = 'copyMove';
   };
 
   const assignPaperToCategory = async (paperId: string, category: LiteratureCategory) => {
@@ -1696,10 +1700,10 @@ export default function LiteratureLibraryView({
       setSelectedCategoryId(category.id);
       await refreshPapers(category.id);
       setSelectedPaperId(paperId);
-      setStatusMessage(l(`已添加到分类：${category.name}`, `Added to category: ${category.name}`));
+      setStatusMessage(l(`已添加到分类：${category.name}，原有分类保留`, `Added to category: ${category.name}; existing categories kept`));
     } catch (nextError) {
       const message =
-        nextError instanceof Error ? nextError.message : l('移动文献失败', 'Failed to move paper');
+        nextError instanceof Error ? nextError.message : l('添加文献到分类失败', 'Failed to add paper to category');
       setError(message);
       setStatusMessage(message);
     } finally {
@@ -1763,7 +1767,7 @@ export default function LiteratureLibraryView({
     event.preventDefault();
     event.stopPropagation();
     setSelectedPaperId(paper.id);
-    const position = clampFloatingMenuPosition(event.clientX, event.clientY, 240, 220);
+    const position = clampFloatingMenuPosition(event.clientX, event.clientY, 240, 340);
     setPaperContextMenu({
       paper,
       x: position.x,
@@ -1785,6 +1789,21 @@ export default function LiteratureLibraryView({
     if (paper) {
       setTagDialogPaper(paper);
     }
+  };
+
+  const handleManageCategories = (paper: LiteraturePaper) => {
+    setPaperContextMenu(null);
+    if (demoMode) { showDemoLockedMessage(); return; }
+    setCategoryDialogPaper(paper);
+  };
+
+  const handleSaveCategories = async (request: UpdatePaperCategoriesRequest) => {
+    setPaperSaving(true);
+    try {
+      const updated = await updatePaperCategories(request);
+      await refreshAll();
+      setStatusMessage(l(`已保存分类：共 ${updated.categoryIds.length} 个`, `Categories saved: ${updated.categoryIds.length}`));
+    } finally { setPaperSaving(false); }
   };
 
   const handleOpenMetadataDialogFromContextMenu = () => {
@@ -2043,6 +2062,8 @@ export default function LiteratureLibraryView({
           loading={loading}
           working={working}
           papers={papers}
+          categories={categories}
+          onManageCategories={handleManageCategories}
           metadataLayout={settings?.metadataLayout}
           metadataWorking={bulkMetadataWorking}
           onEnrichMetadata={() => void handleEnrichAllMetadata()}
@@ -2176,6 +2197,7 @@ export default function LiteratureLibraryView({
               const paperId = paperContextMenu.paper.id; setPaperContextMenu(null);
               void invoke('library_reveal_pdf', { paperId }).catch((error) => setError(String(error)));
             }}>{l('打开 PDF 所在文件夹', 'Show PDF in folder')}</button>
+            <button type="button" disabled={paperSaving} className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-100 disabled:opacity-60" onClick={() => handleManageCategories(paperContextMenu.paper)}><FolderOpen className="h-4 w-4 text-teal-600" />{l('管理分类（可多选）', 'Manage categories (multiple selection)')}</button>
             <button
               type="button"
               onClick={() => void handleToggleFavoriteFromContextMenu()}
@@ -2317,6 +2339,8 @@ export default function LiteratureLibraryView({
         </div>,
         document.body,
       ) : null}
+
+      {categoryDialogPaper && <PaperCategoryDialog key={categoryDialogPaper.id} paper={categoryDialogPaper} categories={categories} onSave={handleSaveCategories} onClose={() => setCategoryDialogPaper(null)} />}
 
       <ImportConfirmationDialog
         open={importDialogOpen}

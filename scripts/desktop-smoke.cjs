@@ -47,6 +47,7 @@ async function pdf(file){const lines=['Fictional Research Paper','The sample siz
  await require('./layout-desktop-smoke.cjs').verifyFlexibleLayout(page,home);
  await require('./workflow-desktop-smoke.cjs').verifyPreparation(page,app,paper,home);
  await require('./workflow-desktop-smoke.cjs').verifyAttachmentFolder(page,app,paper,home);
+ await require('./categories-desktop-smoke.cjs').verifyPaperCategories(page,paper,home);
  if(process.argv.includes('--metadata-lookup')) await require('./metadata-desktop-smoke.cjs').verifyLiveMetadata(app,page,home);
  if(process.argv.includes('--quality-install')) await require('./translation/packaged-quality-smoke.cjs').verifyPackagedQuality(app,page);
 
