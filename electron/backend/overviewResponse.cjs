@@ -14,8 +14,12 @@ function extractOverviewResponse(raw) {
     if (typeof value !== 'string') return '';
     let text = value.replace(/<think>[\s\S]*?<\/think>/giu, '').trim();
     if (/<\/?think>/iu.test(text)) throw new Error('模型思考内容未结束，未作为正文保存。');
-    const fenced = text.match(/^```(?:json|markdown|text)?\s*\n?([\s\S]*?)\n?```$/iu);
+    const fenced = text.match(/```json\s*\n?([\s\S]*?)\n?```/iu) || text.match(/^```(?:markdown|text)?\s*\n?([\s\S]*?)\n?```$/iu);
     if (fenced) text = fenced[1].trim();
+    if (!fenced && !['{', '[', '"'].includes(text[0])) {
+      const object = text.match(/\{\s*"[\s\S]*\}/u);
+      if (object) { let parsed; try { parsed = JSON.parse(object[0]); } catch { throw new Error('说明文字后附带的 JSON 不完整。'); } return walk(parsed, depth + 1); }
+    }
     if (!text) return '';
     if (/^(?:error\b|traceback\b|请求失败|调用失败|连接失败|无法连接)/iu.test(text)) throw new Error('模型返回错误信息，未作为概括保存。');
     if (['{', '[', '"'].includes(text[0])) {
