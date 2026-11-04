@@ -13,7 +13,7 @@ async function requestOllamaReport(input, messages, timeoutMs = 300000) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ model: options.model, messages, stream: false,
-        think: false, format: 'json', keep_alive: '10m',
+        think: false, format: options.reportPlainText ? undefined : 'json', keep_alive: '10m',
         options: { num_ctx: 8192, num_predict: options.reportMaxTokens === 4096 ? 4096 : 2048, repeat_penalty: 1.1, repeat_last_n: 128, temperature: options.temperature ?? 0.2 } }),
       signal: AbortSignal.timeout(timeoutMs),
     });

@@ -70,6 +70,22 @@ test('short overview is accepted on the first response without coupling to an ab
   assert.equal(requests.length, 1);
 });
 
+test('unrecognized overview JSON falls back to unconstrained plain text and keeps raw diagnostics', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paperdesk-overview-response-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const { baseUrl, requests } = await server(t, (_req, res, body, calls) => {
+    if (calls.length === 2) { assert.equal(body.response_format, undefined); assert.match(body.messages[0].content, /直接输出正文/); }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ choices: [{ message: { content: calls.length === 1 ? '{"title":"Only a title"}' : '实际的中文概括正文，样本量为20，未证明因果关系。' } }] }));
+  });
+  const api = createAiCommands({ appPaths: { dataDir: directory } });
+  const result = await api.summarize_personal_overview_local({ options: { baseUrl, fields: ['overview'], evidence: { overview: 'Evidence n=20.' } } });
+  assert.match(result.overview, /样本量为20/); assert.equal(requests.length, 2);
+  const files = await fs.readdir(path.join(directory, '.reports', 'overview-recovery'));
+  const recovery = JSON.parse(await fs.readFile(path.join(directory, '.reports', 'overview-recovery', files[0]), 'utf8'));
+  assert.equal(recovery.attempts[0].raw, '{"title":"Only a title"}'); assert.equal(recovery.attempts[1].status, 'accepted');
+});
+
 test('real loopback chat, embeddings and model listing use only the local daemon', async (t) => {
   const { baseUrl, requests } = await server(t);
   const result = await openAiChat({ baseUrl, model: 'qwen3:4b' }, [{ role: 'user', content: 'Translate control group.' }]);

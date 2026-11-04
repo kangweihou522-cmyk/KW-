@@ -40,7 +40,7 @@ async function verifyPreparation(page, app, paper, home) {
         const body = JSON.parse(init.body); const prompt = body.messages?.[0]?.content || '';
         if (prompt.includes('evidence-grounded scientific reading report') || prompt.includes('全文证据报告')) {
           const report = prompt.includes('全文证据报告')
-            ? { overview: '根据论文证据概括。'.repeat(90) }
+            ? { summary: ['根据论文证据概括。'.repeat(45), '根据论文证据概括。'.repeat(45)] }
             : { title: '虚构研究', abstract: '二十个样本，未证明因果关系。', overview: '全文证据：虚构研究使用二十个样本，未证明因果关系。', keyFindings: ['n=20'], limitations: '仅供交互测试' };
           return new Response(JSON.stringify(endpoint.endsWith('/api/chat') ? { done: true, done_reason: 'stop', message: { content: JSON.stringify(report) } } : { choices: [{ message: { content: JSON.stringify(report) } }] }), { headers: { 'Content-Type': 'application/json' } });
         }
