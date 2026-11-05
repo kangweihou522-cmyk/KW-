@@ -42,7 +42,8 @@ async function verifyPreparation(page, app, paper, home) {
           const report = prompt.includes('全文证据报告')
             ? { summary: ['根据论文证据概括。'.repeat(45), '根据论文证据概括。'.repeat(45)] }
             : { title: '虚构研究', abstract: '二十个样本，未证明因果关系。', overview: '全文证据：虚构研究使用二十个样本，未证明因果关系。', keyFindings: ['n=20'], limitations: '仅供交互测试' };
-          return new Response(JSON.stringify(endpoint.endsWith('/api/chat') ? { done: true, done_reason: 'stop', message: { content: JSON.stringify(report) } } : { choices: [{ message: { content: JSON.stringify(report) } }] }), { headers: { 'Content-Type': 'application/json' } });
+          const content = (report.summary ? '内部推演，不得填入栏目。\n</think>\n' : '') + JSON.stringify(report);
+          return new Response(JSON.stringify(endpoint.endsWith('/api/chat') ? { done: true, done_reason: 'stop', message: { content } } : { choices: [{ message: { content } }] }), { headers: { 'Content-Type': 'application/json' } });
         }
       }
       return globalThis.workflowOriginalFetch(url, init);
