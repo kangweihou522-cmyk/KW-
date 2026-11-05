@@ -15,9 +15,10 @@ function extractOverviewResponse(raw) {
     // Qwen chat templates can open the reasoning block before the returned
     // content starts. A closing tag still marks the final-answer boundary:
     // discard everything before it, even when no opening tag was returned.
-    const endTags = [...value.matchAll(/<\/think>/giu)];
+    let text = value.replace(/<think>[\s\S]*?<\/think>/giu, '').trim();
+    const endTags = [...text.matchAll(/<\/think>/giu)];
     const lastEnd = endTags.at(-1);
-    let text = (lastEnd ? value.slice(lastEnd.index + lastEnd[0].length) : value).trim();
+    if (lastEnd) text = text.slice(lastEnd.index + lastEnd[0].length).trim();
     if (/<\/?think>/iu.test(text)) throw new Error('模型思考内容未结束，未作为正文保存。');
     const fenced = text.match(/```json\s*\n?([\s\S]*?)\n?```/iu) || text.match(/^```(?:markdown|text)?\s*\n?([\s\S]*?)\n?```$/iu);
     if (fenced) text = fenced[1].trim();

@@ -16,5 +16,6 @@ test('Qwen closing-only reasoning boundary keeps only the final answer', () => {
   assert.equal(extract('内部推演，不得保存。\n</think>\n最终概括正文。').overview, '最终概括正文。');
   assert.equal(extract('</THINK>\n```json\n{"overview":"最终概括正文。"}\n```').overview, '最终概括正文。');
   assert.equal(extract('内部推演</think><think>后续推演</think>最终正文。').overview, '最终正文。');
+  assert.equal(extract(JSON.stringify({ overview: '<think>内部推演</think>最终正文。' })).overview, '最终正文。');
   for (const raw of ['内部推演</think>', '内部推演</think><think>再次思考未结束', '<think>思考未结束但包含貌似正文的文字。']) assert.throws(() => extract(raw));
 });
