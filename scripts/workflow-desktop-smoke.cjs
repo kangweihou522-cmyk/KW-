@@ -69,6 +69,30 @@ async function verifyPreparation(page, app, paper, home) {
     assert.equal(cached.cached, true); assert.equal(cached.cacheMatch, 'exact');
     assert.equal(await app.evaluate(() => globalThis.workflowModelCalls), before);
     await details.getByRole('button', { name: '一键处理文献', exact: true }).click();
+    const options = page.getByRole('dialog', { name: '选择处理内容', exact: true });
+    await options.waitFor();
+    assert.equal((await page.evaluate(paperId => window.paperquay.invoke('paper_prepare_status', { paperId }), paper.id)).running, false, 'Opening options must not start processing.');
+    await options.getByRole('button', { name: '清空选择', exact: true }).click();
+    assert.equal(await options.getByRole('button', { name: '开始处理', exact: true }).isDisabled(), true);
+    await options.getByRole('button', { name: '取消', exact: true }).click();
+    await details.getByRole('button', { name: '一键处理文献', exact: true }).click();
+    await options.getByRole('checkbox', { name: '中文标题', exact: true }).check();
+    await options.getByRole('checkbox', { name: '摘要翻译', exact: true }).check();
+    await options.getByRole('button', { name: '开始处理', exact: true }).click();
+    let selected;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      selected = await page.evaluate(paperId => window.paperquay.invoke('paper_prepare_status', { paperId }), paper.id);
+      if (selected.status === 'done' && selected.steps.title && selected.steps.abstract) break;
+      await page.waitForTimeout(50);
+    }
+    assert.deepEqual(Object.keys(selected.steps), ['parse', 'title', 'abstract']);
+    assert.equal(selected.status, 'done');
+    assert.equal(await app.evaluate(() => globalThis.workflowModelCalls), before, 'Selected autofill reuses existing title and cached abstract without full translation.');
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('paperdesk:preparation:selected-steps:v1'))), ['title', 'abstract']);
+    await details.getByRole('button', { name: '一键处理文献', exact: true }).click();
+    assert.equal(await options.getByRole('checkbox', { name: '全文翻译', exact: true }).isChecked(), false);
+    await options.getByRole('button', { name: '全选', exact: true }).click();
+    await options.getByRole('button', { name: '开始处理', exact: true }).click();
     await details.getByText('结果已保留，可再次点击继续', { exact: true }).waitFor({ timeout: 45000 });
     const completed = await page.evaluate(paperId => window.paperquay.invoke('paper_prepare_status', { paperId }), paper.id);
     assert.equal(completed.steps.parse.status, 'done'); assert.equal(completed.steps.overview.status, 'done'); assert.equal(completed.steps.translation.status, 'done');
@@ -90,6 +114,7 @@ async function verifyPreparation(page, app, paper, home) {
       window.dispatchEvent(new CustomEvent('paperdesk:personal-overview-updated', { detail: { paperId } }));
     }, { paperId: paper.id, document: autoFilled });
     await details.getByRole('button', { name: '一键处理文献', exact: true }).click();
+    await options.getByRole('button', { name: '开始处理', exact: true }).click();
     await details.locator('[data-personal-overview]').getByText(/^根据论文证据概括。/).waitFor({ timeout: 45000 });
     await card.getByText('虚构论文', { exact: true }).waitFor();
     await card.getByRole('button', { name: '编辑文献信息', exact: true }).click();
@@ -103,6 +128,7 @@ async function verifyPreparation(page, app, paper, home) {
     const overviewHistory = await page.evaluate(paperId => window.paperquay.invoke('paper_document_history', { paperId }), paper.id);
     assert(overviewHistory.some(version => version.content.some(s => s.content === '真实数据库交互验证：我的手工概览')));
     console.log(`PASS automatic original-abstract translation, Chinese title and ${length}-character overview without a length gate; manual fields and history retained.`);
+    console.log('PASS selectable one-click processing: open/cancel starts nothing, empty selection disabled, only selected fields execute, choices remembered, select-all retains full workflow.');
     const afterAutofill = await app.evaluate(() => globalThis.workflowModelCalls);
     assert.equal(afterAutofill, before + 1, 'Only the cleared Chinese title should require new translation; the abstract uses full-text sentence cache.');
     const request = { text: 'sample', source: 'English', target: 'Chinese', provider: 'offline-quality', documentId: `native-library:${paper.id}`, pageIndex: 0 };

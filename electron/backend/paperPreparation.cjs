@@ -5,6 +5,12 @@ const { splitSentences } = require('./translationText.cjs');
 const { localAiOptions } = require('./localAi.cjs');
 const { neededFields, fillBlankSections, validatePersonalOverview, countCharacters } = require('./personalOverview.cjs');
 const { titleField, chineseTitleRequest, extractAbstract, translateAbstract } = require('./preparationAutofill.cjs');
+const preparationSteps = ['parse', 'metadata', 'title', 'abstract', 'overview', 'personal', 'translation'];
+function selectedPreparationSteps(mode, selectedSteps) {
+  if (selectedSteps === undefined) return mode === 'translation' ? ['translation'] : [...preparationSteps];
+  if (!Array.isArray(selectedSteps) || !selectedSteps.length || selectedSteps.some(step => !preparationSteps.includes(step))) throw new Error('请至少选择一个有效的处理项目。');
+  return preparationSteps.filter(step => selectedSteps.includes(step));
+}
 
 function translationUnits(pages) {
   const units = [];
@@ -63,6 +69,7 @@ function createPreparationCommands(context, commands) {
   async function execute(run, options) {
     const { paperId } = run.state;
     const stage = async (key, work) => {
+      if (key !== 'parse' && !options.selectedSteps.includes(key)) return;
       await checkpoint(run); run.state.stage = key; run.state.steps[key] = { status: 'running' }; await notify(run);
       try { const message = await work(); run.state.steps[key] = { status: 'done', message: message || '' }; }
       catch (error) {
@@ -88,81 +95,79 @@ function createPreparationCommands(context, commands) {
         return `${source.pages.length} 页`;
       });
       if (!source) throw new Error('PDF 解析未完成，请处理提示后继续。');
-      if (options.mode !== 'translation') {
-        await stage('metadata', async () => {
-          const before = paperFor(paperId); const text = source.pages[0].map(block => block.content || '').join('\n');
-          const request = { doi: doiFromText(text) || before.doi, title: before.title, evidenceTitle: before.title, firstPageText: text };
-          const metadata = await commands.lookup_literature_metadata({ request });
-          run.controller.signal.throwIfAborted();
-          if (!metadata?.verified) throw new Error('未找到可靠出版记录，可在编辑文献信息中使用本地分析或手工填写。');
-          const latest = paperFor(paperId); const update = { paperId };
-          for (const key of ['title', 'publication', 'year', 'volume', 'issue', 'pages', 'publishedDate', 'doi']) {
-            if (metadata[key] && latest[key] === before[key]) update[key] = metadata[key];
-          }
-          if (metadata.authors?.length && JSON.stringify(latest.authors) === JSON.stringify(before.authors)) update.authors = metadata.authors;
-          if (metadata.abstractText && !latest.abstractText?.trim()) update.abstractText = metadata.abstractText;
-          await commands.library_update_paper({ request: update }); return '已核对出版记录';
-        });
-        await stage('title', async () => {
-          const before = paperFor(paperId); const field = titleField(context.store.load());
-          if (field && before.customFields?.[field.id]?.trim()) return '已保留现有中文标题';
-          const original = normalizeText(before.title || '');
-          if (!original || /\.pdf$/iu.test(original) || /^[\da-f_-]{12,}$/iu.test(original)) throw new Error('原标题为空或仍像文件名，请先补齐原标题再翻译。');
-          const result = /[\u3400-\u9fff]/u.test(original) ? { translation: original, cached: true } : await context.translationMemory.translate(original, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, source: 'English', target: 'Chinese', background: true, signal: run.controller.signal });
-          if (!normalizeText(result.translation) || !/[\u3400-\u9fff]/u.test(result.translation)) throw new Error('翻译模型未返回有效中文标题，未填入。');
-          run.controller.signal.throwIfAborted(); await checkSource();
-          const request = chineseTitleRequest(context.store.load(), paperId, before.title, result.translation);
-          if (!request) return '生成期间中文标题已填写，已保留';
-          await commands.library_update_paper({ request });
-          return result.cached ? '已复用译文补齐中文标题' : '已翻译并补齐中文标题';
-        });
-        await stage('abstract', async () => {
-          const document = context.noteStore.getDocument(paperId, 'overview');
-          if (!neededFields(document).includes('abstract')) return document.drafts?.length ? '保留未保存草稿；保存后可补齐摘要翻译' : '已保留现有摘要及栏目设置';
-          const abstract = extractAbstract(source.pages, paperFor(paperId).abstractText);
-          const result = await translateAbstract(abstract, context.translationMemory, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, signal: run.controller.signal });
-          validatePersonalOverview({ abstract: result.translation }, ['abstract']);
-          run.controller.signal.throwIfAborted(); await checkSource();
-          const { filled } = fillBlankSections(context.noteStore, paperId, { abstract: result.translation });
-          if (filled.length) notifyPersonal();
-          return filled.length ? result.total ? `已翻译并填入摘要，复用 ${result.cached}/${result.total} 句缓存` : '已填入原有中文摘要' : '生成期间摘要已修改，已保留';
-        });
-        await stage('overview', async () => {
-          const before = paperFor(paperId);
-          if (before.aiSummary?.trim()) return '已保留现有概览及手工修改';
-          if (context.noteStore.listNotes({ paperId }).some(note => note.tags.includes('读书报告'))) return '已保留现有本地报告';
-          const text = formatReport(await evidenceReport(), source.warnings);
-          // Save a recovery before checking for edits made during inference.
-          await writeJson(path.join(context.appPaths.dataDir, '.chatgpt-reports', `${hash([paperId, Date.now(), text])}.json`), { paperId, text, warnings: source.warnings });
-          run.controller.signal.throwIfAborted();
-          await context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
-          if (paperFor(paperId).aiSummary !== before.aiSummary) throw new Error('生成期间概览已被编辑，未覆盖；生成内容已另存恢复副本。');
-          const { reportRequest } = require('./chatGptCommands.cjs');
-          const request = reportRequest(before, text);
-          request.title = `${before.title} · 本地读书报告`; request.tags = ['读书报告', '本地编辑报告'];
-          const intro = '来源：本地模型生成，尚未人工核对。仅分析已提取文字，图像和公式请对照原文。';
-          request.content = request.contentText = `${intro}\n\n${text}`;
-          request.contentJson.content[0].content[0].text = intro;
-          const existing = context.noteStore.listNotes({ paperId }).find(note => note.tags.includes('读书报告') && ['ChatGPT手动回填', 'ChatGPT报告', '本地编辑报告'].some(tag => note.tags.includes(tag)));
-          if (existing) throw new Error('已有本地报告，已保留；新生成内容已另存恢复副本。');
-          const note = await commands.notes_save_chatgpt_report({ request });
-          for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:preparation-note', note);
-          if (paperFor(paperId).aiSummary !== before.aiSummary) throw new Error('概览已被编辑，未覆盖；报告已单独保存。');
-          await commands.library_update_paper({ request: { paperId, aiSummary: text } }); return '已生成并保存，可继续编辑';
-        });
-        await stage('personal', async () => {
-          const document = context.noteStore.getDocument(paperId, 'overview');
-          const fields = neededFields(document).filter(field => field === 'overview');
-          if (!fields.length) return document.drafts?.length ? '保留未保存草稿；保存草稿后可再次处理以填充空栏目' : '已保留现有内容及栏目设置';
-          const generated = await commands.summarize_personal_overview_local({ options: { ...localAiOptions(options.modelOptions), title: paperFor(paperId).title, fields, evidence: await evidenceReport(), signature: source.signature } });
-          validatePersonalOverview(generated, fields);
-          run.controller.signal.throwIfAborted();
-          await context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
-          const { filled } = fillBlankSections(context.noteStore, paperId, generated);
-          if (filled.length) notifyPersonal();
-          return filled.length ? `已自动填充文献概览（${countCharacters(generated.overview)} 字，无字数限制）` : '生成期间内容已修改，已保留你的修改';
-        });
-      }
+      await stage('metadata', async () => {
+        const before = paperFor(paperId); const text = source.pages[0].map(block => block.content || '').join('\n');
+        const request = { doi: doiFromText(text) || before.doi, title: before.title, evidenceTitle: before.title, firstPageText: text };
+        const metadata = await commands.lookup_literature_metadata({ request });
+        run.controller.signal.throwIfAborted();
+        if (!metadata?.verified) throw new Error('未找到可靠出版记录，可在编辑文献信息中使用本地分析或手工填写。');
+        const latest = paperFor(paperId); const update = { paperId };
+        for (const key of ['title', 'publication', 'year', 'volume', 'issue', 'pages', 'publishedDate', 'doi']) {
+          if (metadata[key] && latest[key] === before[key]) update[key] = metadata[key];
+        }
+        if (metadata.authors?.length && JSON.stringify(latest.authors) === JSON.stringify(before.authors)) update.authors = metadata.authors;
+        if (metadata.abstractText && !latest.abstractText?.trim()) update.abstractText = metadata.abstractText;
+        await commands.library_update_paper({ request: update }); return '已核对出版记录';
+      });
+      await stage('title', async () => {
+        const before = paperFor(paperId); const field = titleField(context.store.load());
+        if (field && before.customFields?.[field.id]?.trim()) return '已保留现有中文标题';
+        const original = normalizeText(before.title || '');
+        if (!original || /\.pdf$/iu.test(original) || /^[\da-f_-]{12,}$/iu.test(original)) throw new Error('原标题为空或仍像文件名，请先补齐原标题再翻译。');
+        const result = /[\u3400-\u9fff]/u.test(original) ? { translation: original, cached: true } : await context.translationMemory.translate(original, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, source: 'English', target: 'Chinese', background: true, signal: run.controller.signal });
+        if (!normalizeText(result.translation) || !/[\u3400-\u9fff]/u.test(result.translation)) throw new Error('翻译模型未返回有效中文标题，未填入。');
+        run.controller.signal.throwIfAborted(); await checkSource();
+        const request = chineseTitleRequest(context.store.load(), paperId, before.title, result.translation);
+        if (!request) return '生成期间中文标题已填写，已保留';
+        await commands.library_update_paper({ request });
+        return result.cached ? '已复用译文补齐中文标题' : '已翻译并补齐中文标题';
+      });
+      await stage('abstract', async () => {
+        const document = context.noteStore.getDocument(paperId, 'overview');
+        if (!neededFields(document).includes('abstract')) return document.drafts?.length ? '保留未保存草稿；保存后可补齐摘要翻译' : '已保留现有摘要及栏目设置';
+        const abstract = extractAbstract(source.pages, paperFor(paperId).abstractText);
+        const result = await translateAbstract(abstract, context.translationMemory, { documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature, signal: run.controller.signal });
+        validatePersonalOverview({ abstract: result.translation }, ['abstract']);
+        run.controller.signal.throwIfAborted(); await checkSource();
+        const { filled } = fillBlankSections(context.noteStore, paperId, { abstract: result.translation });
+        if (filled.length) notifyPersonal();
+        return filled.length ? result.total ? `已翻译并填入摘要，复用 ${result.cached}/${result.total} 句缓存` : '已填入原有中文摘要' : '生成期间摘要已修改，已保留';
+      });
+      await stage('overview', async () => {
+        const before = paperFor(paperId);
+        if (before.aiSummary?.trim()) return '已保留现有概览及手工修改';
+        if (context.noteStore.listNotes({ paperId }).some(note => note.tags.includes('读书报告'))) return '已保留现有本地报告';
+        const text = formatReport(await evidenceReport(), source.warnings);
+        // Save a recovery before checking for edits made during inference.
+        await writeJson(path.join(context.appPaths.dataDir, '.chatgpt-reports', `${hash([paperId, Date.now(), text])}.json`), { paperId, text, warnings: source.warnings });
+        run.controller.signal.throwIfAborted();
+        await context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
+        if (paperFor(paperId).aiSummary !== before.aiSummary) throw new Error('生成期间概览已被编辑，未覆盖；生成内容已另存恢复副本。');
+        const { reportRequest } = require('./chatGptCommands.cjs');
+        const request = reportRequest(before, text);
+        request.title = `${before.title} · 本地读书报告`; request.tags = ['读书报告', '本地编辑报告'];
+        const intro = '来源：本地模型生成，尚未人工核对。仅分析已提取文字，图像和公式请对照原文。';
+        request.content = request.contentText = `${intro}\n\n${text}`;
+        request.contentJson.content[0].content[0].text = intro;
+        const existing = context.noteStore.listNotes({ paperId }).find(note => note.tags.includes('读书报告') && ['ChatGPT手动回填', 'ChatGPT报告', '本地编辑报告'].some(tag => note.tags.includes(tag)));
+        if (existing) throw new Error('已有本地报告，已保留；新生成内容已另存恢复副本。');
+        const note = await commands.notes_save_chatgpt_report({ request });
+        for (const sender of run.senders) if (!sender.isDestroyed()) sender.send('paperquay:event', 'paperdesk:preparation-note', note);
+        if (paperFor(paperId).aiSummary !== before.aiSummary) throw new Error('概览已被编辑，未覆盖；报告已单独保存。');
+        await commands.library_update_paper({ request: { paperId, aiSummary: text } }); return '已生成并保存，可继续编辑';
+      });
+      await stage('personal', async () => {
+        const document = context.noteStore.getDocument(paperId, 'overview');
+        const fields = neededFields(document).filter(field => field === 'overview');
+        if (!fields.length) return document.drafts?.length ? '保留未保存草稿；保存草稿后可再次处理以填充空栏目' : '已保留现有内容及栏目设置';
+        const generated = await commands.summarize_personal_overview_local({ options: { ...localAiOptions(options.modelOptions), title: paperFor(paperId).title, fields, evidence: await evidenceReport(), signature: source.signature } });
+        validatePersonalOverview(generated, fields);
+        run.controller.signal.throwIfAborted();
+        await context.translationMemory.scope({ documentId: `native-library:${paperId}`, pdfPath: source.pdfPath, expectedSignature: source.signature });
+        const { filled } = fillBlankSections(context.noteStore, paperId, generated);
+        if (filled.length) notifyPersonal();
+        return filled.length ? `已自动填充文献概览（${countCharacters(generated.overview)} 字，无字数限制）` : '生成期间内容已修改，已保留你的修改';
+      });
       await stage('translation', async () => {
         const units = translationUnits(source.pages); const results = [];
         run.state.total = units.length; run.state.completed = 0; run.state.cached = 0;
@@ -211,17 +216,18 @@ function createPreparationCommands(context, commands) {
       if (typeof text !== 'string') throw new Error('无效翻译文字。');
       return context.translationMemory.translate(text, { documentId, pdfPath, source, target, background: true });
     },
-    async paper_prepare_start({ paperId, mode = 'all', modelOptions, source, target } = {}, event) {
+    async paper_prepare_start({ paperId, mode = 'all', selectedSteps, modelOptions, source, target } = {}, event) {
       if (!['all', 'translation'].includes(mode)) throw new Error('未知文献处理方式。');
+      selectedSteps = selectedPreparationSteps(mode, selectedSteps);
       pdfFor(paperFor(paperId));
       if (runs.get(paperId) && !runs.get(paperId).state.running) await runs.get(paperId).promise;
       if (runs.has(paperId)) { const run = runs.get(paperId); if (event?.sender) run.senders.add(event.sender); return run.state; }
       if (active) throw new Error('另一篇文献正在处理，请等待完成或暂停后停止，再处理此篇。');
       for (const job of prefetches.values()) job.controller.abort();
-      const run = { controller: new AbortController(), senders: new Set(event?.sender ? [event.sender] : []), state: { paperId, status: 'running', running: true, paused: false, stage: 'parse', steps: {}, completed: 0, total: 0, cached: 0 } };
+      const run = { controller: new AbortController(), senders: new Set(event?.sender ? [event.sender] : []), state: { paperId, selectedSteps, status: 'running', running: true, paused: false, stage: 'parse', steps: {}, completed: 0, total: 0, cached: 0 } };
       runs.set(paperId, run); active = paperId;
       try { await notify(run); } catch (error) { runs.delete(paperId); active = null; throw error; }
-      run.promise = execute(run, { mode, modelOptions, source, target }).catch(error => console.error('[PaperDesk] preparation state save failed:', error.message));
+      run.promise = execute(run, { selectedSteps, modelOptions, source, target }).catch(error => console.error('[PaperDesk] preparation state save failed:', error.message));
       return run.state;
     },
     async paper_prepare_status({ paperId }, event) {

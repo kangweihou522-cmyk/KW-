@@ -85,3 +85,47 @@ test('unidentified original abstract leaves that field alone while title and any
   const sections = f.context.noteStore.getDocument('test').content;
   assert.equal(sections.find(s => s.id === 'overview').content, '研究未证明因果关系。'); assert.equal(sections.find(s => s.id === 'abstract').content, '');
 });
+
+test('selected title and abstract run without metadata, overview or full translation', async t => {
+  const f = await fixture(t);
+  f.commands.lookup_literature_metadata = async () => { assert.fail('unselected metadata ran'); };
+  f.commands.summarize_personal_overview_local = async () => { assert.fail('unselected personal overview ran'); };
+  await f.api.paper_prepare_start({ paperId: 'test', selectedSteps: ['abstract', 'title', 'abstract'] });
+  const state = await f.untilDone();
+  assert.equal(state.status, 'done'); assert.deepEqual(state.selectedSteps, ['title', 'abstract']);
+  assert.deepEqual(Object.keys(state.steps), ['parse', 'title', 'abstract']);
+  assert.equal(f.counts.summaries, 0); assert.equal(f.paper.aiSummary, '');
+  assert(f.paper.customFields.custom_chinese_title);
+  assert.equal(await f.api.paper_translation_get({ paperId: 'test' }), null);
+});
+
+test('personal overview alone analyzes evidence but does not save the unselected AI overview or translate', async t => {
+  const f = await fixture(t);
+  await f.api.paper_prepare_start({ paperId: 'test', selectedSteps: ['personal'] });
+  const state = await f.untilDone();
+  assert.equal(state.status, 'done'); assert.deepEqual(Object.keys(state.steps), ['parse', 'personal']);
+  assert.deepEqual(f.counts, { parses: 1, calls: 0, summaries: 1 });
+  assert.equal(f.paper.aiSummary, ''); assert.equal(f.paper.customFields, undefined);
+  const content = f.context.noteStore.getDocument('test').content;
+  assert.equal(content.find(s => s.id === 'overview').content.length, 810);
+  assert.equal(content.find(s => s.id === 'abstract').content, '');
+});
+
+for (const step of ['parse', 'metadata', 'overview', 'translation']) test(`only selected ${step} and required parsing execute`, async t => {
+  const f = await fixture(t);
+  await f.api.paper_prepare_start({ paperId: 'test', selectedSteps: [step] });
+  const state = await f.untilDone();
+  assert.deepEqual(Object.keys(state.steps), step === 'parse' ? ['parse'] : ['parse', step]);
+  assert.equal(f.counts.calls > 0, step === 'translation');
+  assert.equal(f.counts.summaries, step === 'overview' ? 1 : 0);
+  assert.equal(f.context.noteStore.getDocument('test').content, null);
+});
+
+test('empty and unknown selections are rejected before any processing', async t => {
+  const f = await fixture(t);
+  for (const selectedSteps of [[], ['bogus'], ['title', 'bogus'], 'translation', null]) {
+    await assert.rejects(f.api.paper_prepare_start({ paperId: 'test', selectedSteps }), /至少选择/);
+  }
+  assert.deepEqual(f.counts, { parses: 0, calls: 0, summaries: 0 });
+  assert.equal(await f.api.paper_prepare_status({ paperId: 'test' }), null);
+});
